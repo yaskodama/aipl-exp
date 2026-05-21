@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Pomodoro Timer</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      background: linear-gradient(135deg,#f0f4ff 0%, #f7f7fb 100%);
+      padding: 20px;
+    }
+    .card {
+      width: 420px;
+      max-width: 100%;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 8px 30px rgba(20,20,50,0.08);
+      padding: 28px;
+      text-align: center;
+    }
+    h1 { margin-bottom: 10px; font-size: 1.2rem; color: #333; }
+    [data-testid="phase-display"] {
+      font-size: 0.9rem;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 8px;
+    }
+    [data-testid="timer-display"] {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Helvetica Neue", monospace;
+      font-size: 4.6rem;
+      color: #222;
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+    [data-testid="cycle-count"] { color: #888; margin-bottom: 18px; display: block; }
+    .controls { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-bottom: 20px; }
+    button {
+      border: none;
+      border-radius: 8px;
+      padding: 10px 14px;
+      cursor: pointer;
+      font-weight: 600;
+      color: #fff;
+      background: #666;
+    }
+    [data-testid="btn-start"] { background: #4CAF50; }
+    [data-testid="btn-pause"] { background: #FF9800; }
+    [data-testid="btn-reset"] { background: #9E9E9E; }
+    [data-testid="btn-skip"]  { background: #2196F3; }
+    .settings {
+      border-top: 1px solid #eee;
+      padding-top: 18px;
+      margin-top: 6px;
+      text-align: left;
+    }
+    .settings h3 { margin-bottom: 12px; font-size: 0.95rem; color: #444; }
+    .row { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+    label { color: #444; font-size: 0.95rem; }
+    input[type="number"] {
+      width: 90px;
+      padding: 8px 10px;
+      border-radius: 6px;
+      border: 1px solid #ddd;
+      text-align: center;
+      font-size: 0.95rem;
+    }
+    [data-testid="btn-save-settings"] {
+      width: 100%;
+      margin-top: 6px;
+      background: #764ba2;
+      color: #fff;
+      padding: 10px 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>🍅 Pomodoro</h1>
+    <div data-testid="phase-display">work</div>
+    <div data-testid="timer-display">25:00</div>
+    <div data-testid="cycle-count">0</div>
+
+    <div class="controls">
+      <button data-testid="btn-start">Start</button>
+      <button data-testid="btn-pause">Pause</button>
+      <button data-testid="btn-reset">Reset</button>
+      <button data-testid="btn-skip">Skip</button>
+    </div>
+
+    <div class="settings">
+      <h3>Settings</h3>
+      <div class="row">
+        <label for="sw">Work (min)</label>
+        <input id="sw" type="number" min="1" max="999" data-testid="setting-work" value="25">
+      </div>
+      <div class="row">
+        <label for="sb">Break (min)</label>
+        <input id="sb" type="number" min="1" max="999" data-testid="setting-break" value="5">
+      </div>
+      <button data-testid="btn-save-settings">Save Settings</button>
+    </div>
+  </div>
+
+  <script>
+    (function(){
+      // Storage keys
+      const STORAGE_KEY = 'pomodoro_state'; // from parent A
+      const KEY_WORK = 'pomo_work';         // from parent B
+      const KEY_BREAK = 'pomo_break';       // from parent B
+      const KEY_CYCLES = 'pomo_cycles';     // from parent B
+
+      // State (initial defaults)
+      let workMinutes  = 25; // from both
+      let breakMinutes = 5;  // from both
+      let phase        = 'work'; // 'work' | 'break' (from both)
+      let cycleCount   = 0;   // from both
+      let secondsLeft  = workMinutes * 60; // from both
+      let isRunning    = false; // from parent B
+      let intervalId   = null;  // from parent B
+
+      // DOM refs
+      const elTimer  = document.querySelector('[data-testid="timer-display"]');
+      const elPhase  = document.querySelector('[data-testid="phase-display"]');
+      const elCycles = document.querySelector('[data-testid="cycle-count"]');
+      const btnStart = document.querySelector('[data-testid="btn-start"]');
+      const btnPause = document.querySelector('[data-testid="btn-pause"]');
+      const btnReset = document.querySelector('[data-testid="btn-reset"]');
+      const btnSkip  = document.querySelector('[data-testid="btn-skip"]');
+      const inputWork  = document.querySelector('[data-testid="setting-work"]');
+      const inputBreak = document.querySelector('[data-testid="setting-break"]');
+      const btnSave = document.querySelector('[data-testid="btn-save-settings"]');
+
+      // Utilities
+      function formatTime(secs) { // from parent B
+        if (secs < 0) secs = 0;
+        const m = Math.floor(secs / 60);
+        const s = secs % 60;
+        return m + ':' + String(s).padStart(2, '0');
+      }
+
+      function render() { // from parent B / A
+        elTimer.textContent = formatTime(secondsLeft);
+        elPhase.textContent = phase;
+        elCycles.textContent = String(cycleCount);
+      }
+
+      function phaseDuration(ph) { // from parent B
+        return (ph === 'work' ? workMinutes : breakMinutes) * 60;
+      }
+
+      // Persistence helpers: read both parent formats on init, write both on save
+      function loadFromStorage() { // from parent A + B
+        // Try parent A single-object format first
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (raw) {
+            const obj = JSON.parse(raw);
+            if (obj && typeof obj === 'object') {
+              if (typeof obj.workMinutes === 'number') workMinutes = obj.workMinutes;
+              if (typeof obj.breakMinutes === 'number') breakMinutes = obj.breakMinutes;
+              if (typeof obj.cycleCount === 'number') cycleCount = obj.cycleCount;
+            }
+          }
+        } catch (e) {
+          // ignore parse errors
+        }
+        // Then try parent B separate keys (may override)
+        try {
+          const sw = localStorage.getItem(KEY_WORK);
+          const sb = localStorage.getItem(KEY_BREAK);
+          const sc = localStorage.getItem(KEY_CYCLES);
+          if (sw !== null) {
+            const n = parseInt(sw, 10);
+            if (!isNaN(n)) workMinutes = n;
+          }
+          if (sb !== null) {
+            const n = parseInt(sb, 10);
+            if (!isNaN(n)) breakMinutes = n;
+          }
+          if (sc !== null) {
+            const n = parseInt(sc, 10);
+            if (!isNaN(n)) cycleCount = n;
+          }
+        } catch (e) {}
+      }
+
+      function persistAll() { // from parent A + B
+        // parent A object
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify({
+            workMinutes: workMinutes,
+            breakMinutes: breakMinutes,
+            cycleCount: cycleCount
+          }));
+        } catch (e) {}
+        // parent B separate keys
+        try {
+          localStorage.setItem(KEY_WORK, String(workMinutes));
+          localStorage.setItem(KEY_BREAK, String(breakMinutes));
+          localStorage.setItem(KEY_CYCLES, String(cycleCount));
+        } catch (e) {}
+      }
+
+      // Timer operations
+      function startTimer() { // from parent B
+        if (isRunning) return;
+        isRunning = true;
+        if (intervalId !== null) clearInterval(intervalId);
+        intervalId = setInterval(tick, 1000); // required: use setInterval for tests
+      }
+
+      function tick() { // from both
+        secondsLeft -= 1;
+        if (secondsLeft <= 0) {
+          secondsLeft = 0;
+          render();
+          // stop current interval
+          if (intervalId !== null) {
+            clearInterval(intervalId);
+            intervalId = null;
+          }
+          isRunning = false;
+          onPhaseEnd(); // will auto-advance and auto-start next
+        } else {
+          render();
+        }
+      }
+
+      function pauseTimer() { // from parent B
+        if (!isRunning && intervalId === null) return;
+        if (intervalId !== null) {
+          clearInterval(intervalId);
+          intervalId = null;
+        }
+        isRunning = false;
+      }
+
+      function resetTimer() { // from parent A/B
+        pauseTimer();
+        secondsLeft = phaseDuration(phase);
+        render();
+      }
+
+      function onPhaseEnd() { // from parent A/B
+        if (phase === 'work') {
+          phase = 'break';
+          secondsLeft = phaseDuration('break');
+        } else {
+          phase = 'work';
+          cycleCount += 1;
+          secondsLeft = phaseDuration('work');
+          // persist cycle increment to both formats
+          persistAll();
+        }
+        render();
+        // auto-start next phase
+        startTimer();
+      }
+
+      function skipPhase() { // from parent B (with slight A behavior)
+        const wasRunning = isRunning;
+        pauseTimer();
+        if (phase === 'work') {
+          phase = 'break';
+          secondsLeft = phaseDuration('break');
+        } else {
+          phase = 'work';
+          cycleCount += 1;
+          secondsLeft = phaseDuration('work');
+          persistAll();
+        }
+        render();
+        if (wasRunning) startTimer();
+      }
+
+      function saveSettings() { // from parent B + A
+        const w = parseInt(inputWork.value, 10);
+        const b = parseInt(inputBreak.value, 10);
+        if (!isNaN(w) && w > 0) workMinutes = w;
+        if (!isNaN(b) && b > 0) breakMinutes = b;
+        // Persist both parent formats so tests compatible
+        persistAll();
+        // Note: do not change secondsLeft here per spec; Reset will use new values
+      }
+
+      // Event bindings
+      btnStart.addEventListener('click', startTimer);
+      btnPause.addEventListener('click', pauseTimer);
+      btnReset.addEventListener('click', resetTimer);
+      btnSkip.addEventListener('click', skipPhase);
+      btnSave.addEventListener('click', saveSettings);
+
+      // Initialization
+      function init() { // from parent B/A
+        loadFromStorage();
+        inputWork.value = String(workMinutes);
+        inputBreak.value = String(breakMinutes);
+        secondsLeft = phaseDuration('work');
+        phase = 'work';
+        render();
+      }
+
+      init();
+      // expose for debugging (not required)
+      window.__pomo = {
+        startTimer, pauseTimer, resetTimer, skipPhase, saveSettings
+      };
+    })();
+  </script>
+</body>
+</html>

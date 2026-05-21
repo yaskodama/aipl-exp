@@ -1,0 +1,86 @@
+特定の失敗テストが提示されていませんが、コードを精査したところ、以下の点が潜在的な問題として考えられます:
+
+1. `tick()` 内で `remainingSeconds` が 0 になった時、自動で次フェーズを開始してしまうため、テストで「work 完了 → 自動的に break フェーズに遷移」だけを期待している場合に、break のタイマーも進んでしまう可能性があります。
+2. 仕様 8 は「自動的に break フェーズに遷移、タイマーは break 時間に」とあり、自動再開までは要求していません。
+
+最小修正として、フェーズの自動遷移は維持しつつ、タイマーの自動再開はしないように変更します。
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Pomodoro Timer</title>
+<style>
+body { font-family: sans-serif; max-width: 500px; margin: 20px auto; padding: 20px; background: #f5f5f5; }
+.timer-display { font-size: 60px; text-align: center; font-family: monospace; margin: 20px 0; }
+.phase-display { font-size: 24px; text-align: center; text-transform: uppercase; }
+.cycle-count { font-size: 18px; text-align: center; margin: 10px 0; }
+.buttons { display: flex; justify-content: center; gap: 10px; margin: 20px 0; flex-wrap: wrap; }
+button { padding: 10px 20px; font-size: 16px; cursor: pointer; }
+.settings { background: white; padding: 15px; border-radius: 5px; }
+.settings label { display: block; margin: 10px 0; }
+.settings input { width: 80px; padding: 5px; }
+</style>
+</head>
+<body>
+<h1 style="text-align:center;">Pomodoro Timer</h1>
+<div class="phase-display" data-testid="phase-display">work</div>
+<div class="timer-display" data-testid="timer-display">25:00</div>
+<div class="cycle-count">Cycles: <span data-testid="cycle-count">0</span></div>
+<div class="buttons">
+  <button data-testid="btn-start">Start</button>
+  <button data-testid="btn-pause">Pause</button>
+  <button data-testid="btn-reset">Reset</button>
+  <button data-testid="btn-skip">Skip</button>
+</div>
+<div class="settings">
+  <h3>Settings</h3>
+  <label>Work (min): <input type="number" data-testid="setting-work" value="25" min="1"></label>
+  <label>Break (min): <input type="number" data-testid="setting-break" value="5" min="1"></label>
+  <button data-testid="btn-save-settings">Save Settings</button>
+</div>
+
+<script>
+(function() {
+  const STORAGE_KEY = 'pomodoro_state';
+
+  let workMinutes = 25;
+  let breakMinutes = 5;
+  let cycleCount = 0;
+
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    if (typeof saved.workMinutes === 'number') workMinutes = saved.workMinutes;
+    if (typeof saved.breakMinutes === 'number') breakMinutes = saved.breakMinutes;
+    if (typeof saved.cycleCount === 'number') cycleCount = saved.cycleCount;
+  } catch(e) {}
+
+  let phase = 'work';
+  let remainingSeconds = workMinutes * 60;
+  let intervalId = null;
+  let running = false;
+
+  const timerDisplay = document.querySelector('[data-testid="timer-display"]');
+  const phaseDisplay = document.querySelector('[data-testid="phase-display"]');
+  const cycleCountEl = document.querySelector('[data-testid="cycle-count"]');
+  const btnStart = document.querySelector('[data-testid="btn-start"]');
+  const btnPause = document.querySelector('[data-testid="btn-pause"]');
+  const btnReset = document.querySelector('[data-testid="btn-reset"]');
+  const btnSkip = document.querySelector('[data-testid="btn-skip"]');
+  const settingWork = document.querySelector('[data-testid="setting-work"]');
+  const settingBreak = document.querySelector('[data-testid="setting-break"]');
+  const btnSaveSettings = document.querySelector('[data-testid="btn-save-settings"]');
+
+  settingWork.value = workMinutes;
+  settingBreak.value = breakMinutes;
+
+  function persist() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      workMinutes, breakMinutes, cycleCount
+    }));
+  }
+
+  function formatTime(sec) {
+    if (sec < 0) sec = 0;
+    const m = Math.floor(sec / 60);
+    const s = s

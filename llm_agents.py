@@ -441,7 +441,7 @@ class ClaudeAgent(BaseAgent):
         self.use_thinking = thinking if thinking is not None else self.SUPPORTS_THINKING[model]
         self.effort = effort if effort is not None else self.DEFAULT_EFFORT[model]
         self.pricing = self.PRICING[model]
-        self.client = anthropic.Anthropic(api_key=api_key)
+        self.client = anthropic.Anthropic(api_key=api_key, timeout=1800.0)  # 30 min/req
 
     def call(self, prompt: str, op: str) -> LLMResult:
         t0 = time.time()
@@ -537,7 +537,7 @@ class OpenAIAgent(BaseAgent):
         self.model = model
         self.max_tokens = max_tokens
         self.pricing = self.PRICING.get(model, {"in": 1.0, "out": 5.0})
-        self.client = OpenAI(api_key=api_key)
+        self.client = OpenAI(api_key=api_key, timeout=1800.0)  # 30 min/req
 
     def call(self, prompt: str, op: str) -> LLMResult:
         t0 = time.time()

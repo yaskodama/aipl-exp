@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pomodoro Timer</title>
+<style>
+  /* from parent A */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: Arial, sans-serif;
+    background: #1a1a2e;
+    color: #eee;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 20px;
+  }
+  h1 { font-size: 2rem; margin-bottom: 30px; color: #e94560; }
+  .timer-section {
+    background: #16213e;
+    border-radius: 16px;
+    padding: 40px;
+    text-align: center;
+    margin-bottom: 20px;
+    width: 100%;
+    max-width: 400px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  }
+  [data-testid="phase-display"] {
+    font-size: 1.2rem;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    color: #e94560;
+    margin-bottom: 10px;
+  }
+  [data-testid="timer-display"] {
+    font-size: 5rem;
+    font-weight: bold;
+    letter-spacing: 2px;
+    margin-bottom: 10px;
+  }
+  [data-testid="cycle-count"] {
+    font-size: 1rem;
+    color: #aaa;
+    margin-bottom: 20px;
+  }
+  .btn-row {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: bold;
+    transition: opacity 0.2s;
+  }
+  button:hover { opacity: 0.85; }
+  [data-testid="btn-start"] { background: #0f3460; color: #fff; }
+  [data-testid="btn-pause"] { background: #533483; color: #fff; }
+  [data-testid="btn-reset"] { background: #e94560; color: #fff; }
+  [data-testid="btn-skip"]  { background: #1a7a4a; color: #fff; }
+  .settings-section {
+    background: #16213e;
+    border-radius: 16px;
+    padding: 30px;
+    width: 100%;
+    max-width: 400px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  }
+  .settings-section h2 { margin-bottom: 16px; font-size: 1.1rem; color: #e94560; }
+  .setting-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .setting-row label { font-size: 0.95rem; }
+  .setting-row input {
+    width: 70px;
+    padding: 6px;
+    border-radius: 6px;
+    border: 1px solid #444;
+    background: #0f3460;
+    color: #fff;
+    font-size: 1rem;
+    text-align: center;
+  }
+  [data-testid="btn-save-settings"] {
+    background: #e94560;
+    color: #fff;
+    width: 100%;
+    margin-top: 10px;
+    padding: 12px;
+  }
+  /* from parent B */
+  :root { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; }
+  .container { background:#fff; padding:24px; border-radius:8px; box-shadow:0 6px 18px rgba(0,0,0,0.08); width:320px; }
+  .display { text-align:center; margin-bottom:16px; }
+  .timer { font-size:48px; font-weight:700; margin-bottom:6px; }
+  .meta { display:flex; justify-content:space-between; font-size:14px; color:#374151; }
+  .controls { display:flex; gap:8px; margin-top:16px; }
+  button { flex:1; padding:8px 10px; border-radius:6px; border:1px solid #e5e7eb; background:#fff; cursor:pointer; font-weight:600; }
+  button:active { transform:translateY(1px); }
+  .btn-primary { background:#2563eb; color:#fff; border-color:#2563eb; }
+  .btn-danger { background:#ef4444; color:#fff; border-color:#ef4444; }
+  .settings { margin-top:18px; border-top:1px dashed #e5e7eb; padding-top:12px; display:flex; gap:8px; align-items:center; }
+  .settings label { font-size:13px; color:#374151; }
+  .settings input[type="number"] { width:64px; padding:6px 8px; border-radius:6px; border:1px solid #e5e7eb; }
+  .save { padding:8px 10px; border-radius:6px; border:1px solid #e5e7eb; background:#10b981; color:#fff; cursor:pointer; font-weight:600; }
+  .small { font-size:12px; color:#6b7280; text-align:center; margin-top:8px; }
+</style>
+</head>
+<body>
+  <div class="container" role="application" aria-label="Pomodoro Timer">
+    <h1>🍅 Pomodoro</h1>
+
+    <div class="timer-section">
+      <div data-testid="phase-display">work</div>
+      <div data-testid="timer-display">25:00</div>
+      <div data-testid="cycle-count">Cycles: 0</div>
+      <div class="btn-row">
+        <button data-testid="btn-start">Start</button>
+        <button data-testid="btn-pause">Pause</button>
+        <button data-testid="btn-reset">Reset</button>
+        <button data-testid="btn-skip">Skip</button>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h2>Settings</h2>
+      <div class="setting-row">
+        <label for="setting-work">Work (min)</label>
+        <input data-testid="setting-work" id="setting-work" type="number" min="1" max="99">
+      </div>
+      <div class="setting-row">
+        <label for="setting-break">Break (min)</label>
+        <input data-testid="setting-break" id="setting-break" type="number" min="1" max="99">
+      </div>
+      <button data-testid="btn-save-settings">Save Settings</button>
+    </div>
+    <div class="small">Single-file Pomodoro timer — settings & cycles persist after reload.</div>
+  </div>
+
+<script>
+(function() {
+  // --- State & Persistence ---
+  const DEFAULTS = { work: 25, break: 5 };
+  const KEY_WORK = 'pomo_work'; // from parent A
+  const KEY_BREAK = 'pomo_break'; // from parent A
+  const KEY_CYCLES = 'pomo_cycles'; // from parent A
+
+  // from parent A & B
+  function loadNumber(key, fallback) {
+    const v = localStorage.getItem(key);
+    return v !== null ? Number(v) : fallback;
+  }
+
+  // from parent A
+  function saveSettings(work, brk) {
+    localStorage.setItem(KEY_WORK, work);
+    localStorage.setItem(KEY_BREAK, brk);
+  }
+
+  // from parent B
+  function saveSettingsToStorage() {
+    localStorage.setItem(KEY_WORK, String(workMinutes));
+    localStorage.setItem(KEY_BREAK, String(breakMinutes));
+  }
+
+  // from parent A & B
+  function saveCycles(n) {
+    localStorage.setItem(KEY_CYCLES, n);
+  }
+
+  // from parent A
+  var settings = loadSettings();
+  var workMinutes = settings.work;
+  var breakMinutes = settings.break;
+
+  // from parent B
+  let workMinutesB = loadNumber(KEY_WORK, DEFAULTS.work);
+  let breakMinutesB = loadNumber(KEY_BREAK, DEFAULTS.break);
+
+  // Use settings loaded first, which incorporates DEFAULTS if localStorage is empty
+  // Then update the input fields with the loaded values.
+  workMinutes = workMinutesB;
+  breakMinutes = breakMinutesB;
+
+  // from parent A & B
+  let cycleCount = loadNumber(KEY_CYCLES, 0);
+
+  // from parent A
+  let phase = 'work'; // 'work' | 'break'
+  let remainingSeconds = workMinutes * 60;
+  let intervalId = null;
+  let running = false;
+
+  // --- DOM ---
+  // from parent A
+  var timerDisplay  = document.querySelector('[data-testid="timer-display"]');
+  var phaseDisplay  = document.querySelector('[data-testid="phase-display"]');
+  var cycleDisplay  = document.querySelector('[data-testid="cycle-count"]');
+  var btnStart      = document.querySelector('[data-testid="btn-start"]');
+  var btnPause      = document.querySelector('[data-testid="btn-pause"]');
+  var btnReset      = document.querySelector('[data-testid="btn-reset"]');
+  var btnSkip       = document.querySelector('[data-testid="btn-skip"]');
+  var inputWork     = document.querySelector('[data-testid="setting-work"]');
+  var inputBreak    = document.querySelector('[data-testid="setting-break"]');
+  var btnSave       = document.querySelector('[data-testid="btn-save-settings"]');
+
+  // --- Helpers ---
+  // from parent A
+  function formatTime(secs) {
+    var m = Math.floor(secs / 60);
+    var s = secs % 60;
+    return m + ':' + (s < 10 ? '0' : '') + s;
+  }
+
+  // from parent B
+  function formatTimeB(sec) {
+    if (sec < 0) sec = 0;
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return m + ':' + String(s).padStart(2, '0');
+  }
+  // Use the more robust formatTimeB
+  const formatTime = formatTimeB;
+
+  // from parent A
+  function render() {
+    timerDisplay.textContent = formatTime(remainingSeconds);
+    phaseDisplay.textContent = phase;
+    cycleDisplay.textContent = 'Cycles: ' + cycleCount;
+  }
+
+  // from parent B
+  function updateDisplay() {
+    timerDisplay.textContent = formatTime(remainingSeconds);
+    phaseDisplay.textContent = phase;
+    cycleDisplay.textContent = String(cycleCount);
+  }
+  // Use updateDisplay for consistency
+  const renderOrUpdateDisplay = updateDisplay;
+
+
+  // from parent A
+  function phaseDuration(p) {
+    return (p === 'work' ? workMinutes : breakMinutes) * 60;
+  }
+
+  // from parent A
+  function tick() {
+    if (remainingSeconds > 0) {
+      remainingSeconds -= 1;
+      renderOrUpdateDisplay();
+    }
+    if (remainingSeconds === 0) {
+      // phase complete
+      stopInterval();
+      running = false;
+      if (phase === 'work') {
+        phase = 'break';
+        remainingSeconds = breakMinutes * 60;
+      } else {
+        phase = 'work';
+        cycleCount += 1;
+        saveCycles(cycleCount);
+        remainingSeconds = workMinutes * 60;
+      }
+      renderOrUpdateDisplay();
+      // auto-start next phase
+      startInterval();
+      running = true;
+    }
+  }
+
+  // from parent B
+  function handlePhaseComplete() {
+    if (phase === 'work') {
+      phase = 'break';
+      remainingSeconds = breakMinutes * 60;
+      renderOrUpdateDisplay();
+      // keep running (continue into break)
+    } else {
+      // break finished -> increment cycle and go to work
+      cycleCount += 1;
+      saveCycles(cycleCount);
+      phase = 'work';
+      remainingSeconds = workMinutes * 60;
+      renderOrUpdateDisplay();
+      // keep running (continue into work)
+    }
+  }
+
+  // Combine tick and handlePhaseComplete logic
+  function tickCombined() {
+    if (remainingSeconds > 0) {
+      remainingSeconds -= 1;
+      renderOrUpdateDisplay();
+    } else {
+      stopInterval();
+      running = false;
+      handlePhaseComplete();
+      // If handlePhaseComplete doesn't auto-start, start it here.
+      // The logic in handlePhaseComplete for auto-starting is preferred.
+      if (running) { // Check if handlePhaseComplete decided to continue running
+         startInterval();
+      }
+    }
+  }
+
+  function startInterval() {
+    if (intervalId !== null) return;
+    intervalId = setInterval(tickCombined, 1000); // Use combined tick
+    running = true;
+  }
+
+  function stopInterval() {
+    if (intervalId !== null) {
+      clearInterval(intervalId);
+      intervalId = null;
+    }
+    running = false;
+  }
+
+  // from parent B
+  function resetTimer() {
+    stopInterval();
+    running = false;
+    remainingSeconds = (phase === 'work' ? workMinutes : breakMinutes) * 60;
+    renderOrUpdateDisplay();
+  }
+
+  // from parent A
+  function resetTimerA() {
+    stopInterval();
+    running = false;
+    remainingSeconds = phaseDuration(phase);
+    render();
+  }
+  // Use resetTimerB as it incorporates the unified state variables
+  const reset = resetTimer;
+
+  // from parent B
+  function skipPhase() {
+    const wasRunning = running;
+    stopInterval(); // stopInterval sets running to false
+    if (phase === 'work') {
+      phase = 'break';
+      remainingSeconds = breakMinutes * 60;
+    } else {
+      phase = 'work';
+      cycleCount += 1;
+      saveCycles(cycleCount);
+      remainingSeconds = workMinutes * 60;
+    }
+    renderOrUpdateDisplay();
+    if (wasRunning) {
+        startInterval(); // Re-start if it was running
+    }
+  }
+
+  // from parent A
+  function skipPhaseA() {
+    stopInterval();
+    running = false;
+    if (phase === 'work') {
+      phase = 'break';
+      remainingSeconds = breakMinutes * 60;
+    } else {
+      phase = 'work';
+      cycleCount += 1;
+      saveCycles(cycleCount);
+      remainingSeconds = workMinutes * 60;
+    }
+    render();
+  }
+  // Use skipPhaseB, it correctly handles the running state
+  const skip = skipPhase;
+
+
+  // --- Init UI ---
+  // from parent A
+  inputWork.value  = workMinutes;
+  inputBreak.value = breakMinutes;
+  render();
+
+  // from parent B
+  function initUI() {
+    updateDisplay();
+    inputWork.value = String(workMinutes);
+    inputBreak.value = String(breakMinutes);
+  }
+  // Use initUI
+  initUI();
+
+
+  // --- Event Listeners ---
+  btnStart.addEventListener('click', function() {
+    startInterval();
+  });
+
+  btnPause.addEventListener('click', function() {
+    stopInterval();
+  });
+
+  btnReset.addEventListener('click', function() {
+    reset(); // Use unified reset
+  });
+
+  btnSkip.addEventListener('click', function() {
+    skip(); // Use unified skip
+  });
+
+  // from parent A
+  btnSave.addEventListener('click', function() {
+    var w = parseInt(inputWork.value,  10);
+    var b = parseInt(inputBreak.value, 10);
+    if (isNaN(w) || w < 1) w = DEFAULTS.work;
+    if (isNaN(b) || b < 1) b = DEFAULTS.break;
+    workMinutes  = w;
+    breakMinutes = b;
+    saveSettings(w, b);
+    inputWork.value  = w;
+    inputBreak.value = b;
+  });
+
+  // from parent B
+  btnSaveSettings.addEventListener('click', function() {
+    const w = Number(inputWork.value);
+    const b = Number(inputBreak.value);
+    // Validate: ensure positive integers; if invalid, ignore.
+    if (!Number.isFinite(w) || w <= 0) return;
+    if (!Number.isFinite(b) || b <= 0) return;
+    workMinutes = Math.floor(w);
+    breakMinutes = Math.floor(b);
+    saveSettingsToStorage();
+    // If the app is at initial load state (phase is work and remaining equals previous work full),
+    // keep according to spec: startup uses saved settings. But per spec, new setting takes effect on reset.
+    // We will not change remainingSeconds here to avoid surprising the user; tests will call reset to apply.
+  });
+  // Combine save logic: use unified variables and both save functions for robustness
+  btnSave.addEventListener('click', function() {
+    const w = Number(inputWork.value);
+    const b = Number(inputBreak.value);
+
+    // Basic validation for number inputs
+    if (isNaN(w) || w <= 0) {
+        inputWork.value = workMinutes; // Revert to current valid value
+        return;
+    }
+    if (isNaN(b) || b <= 0) {
+        inputBreak.value = breakMinutes; // Revert to current valid value
+        return;
+    }
+
+    workMinutes = Math.floor(w);
+    breakMinutes = Math.floor(b);
+
+    saveSettings(workMinutes, breakMinutes); // from A
+    saveSettingsToStorage(); // from B
+
+    // Update display if current phase duration is affected
+    if (phase === 'work' && remainingSeconds > (workMinutes * 60)) {
+        remainingSeconds = workMinutes * 60;
+    } else if (phase === 'break' && remainingSeconds > (breakMinutes * 60)) {
+        remainingSeconds = breakMinutes * 60;
+    }
+    renderOrUpdateDisplay();
+  });
+
+
+  // Initialize on load
+  // from parent A - initial render call
+  render();
+  // from parent B - initUI call
+  initUI();
+  // Combined initialization: initUI is more comprehensive
+  // render(); // Redundant after initUI
+
+  // Ensure state persists cycles and settings on unload (just in case)
+  // from parent B
+  window.addEventListener('beforeunload', () => {
+    saveSettings(workMinutes, breakMinutes); // from A
+    saveSettingsToStorage(); // from B
+    saveCycles(cycleCount); // from A & B
+  });
+
+  // Expose for debugging (no harm)
+  // from parent B
+  window.__pomodoro = {
+    start: startInterval,
+    pause: stopInterval,
+    reset: reset,
+    skip: skip,
+    getState: () => ({ phase, remainingSeconds, workMinutes, breakMinutes, cycleCount, running })
+  };
+})();
+</script>
+</body>
+</html>

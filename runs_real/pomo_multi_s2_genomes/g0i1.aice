@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pomodoro Timer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 500px;
+            width: 100%;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 28px;
+        }
+
+        .timer-section {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 30px;
+            color: white;
+            text-align: center;
+        }
+
+        .phase-display {
+            font-size: 18px;
+            margin-bottom: 10px;
+            opacity: 0.9;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .timer-display {
+            font-size: 72px;
+            font-weight: bold;
+            font-family: 'Courier New', monospace;
+            margin: 20px 0;
+            letter-spacing: 5px;
+        }
+
+        .cycle-count {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 12px 24px;
+            font-size: 16px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            min-width: 100px;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .btn-start {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .btn-start:hover {
+            background: #45a049;
+        }
+
+        .btn-pause {
+            background: #ff9800;
+            color: white;
+        }
+
+        .btn-pause:hover {
+            background: #e68900;
+        }
+
+        .btn-reset {
+            background: #2196F3;
+            color: white;
+        }
+
+        .btn-reset:hover {
+            background: #0b7dda;
+        }
+
+        .btn-skip {
+            background: #9C27B0;
+            color: white;
+        }
+
+        .btn-skip:hover {
+            background: #7b1fa2;
+        }
+
+        .settings-section {
+            background: #f5f5f5;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .settings-section h2 {
+            font-size: 18px;
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .setting-group {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            gap: 10px;
+        }
+
+        .setting-group label {
+            flex: 1;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .setting-group input {
+            width: 80px;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+
+        .btn-save-settings {
+            width: 100%;
+            background: #667eea;
+            color: white;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+
+        .btn-save-settings:hover {
+            background: #5568d3;
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🍅 Pomodoro Timer</h1>
+
+        <div class="timer-section">
+            <div class="phase-display" data-testid="phase-display">work</div>
+            <div class="timer-display" data-testid="timer-display">25:00</div>
+            <div class="cycle-count" data-testid="cycle-count">Cycles: 0</div>
+        </div>
+
+        <div class="button-group">
+            <button class="btn-start" data-testid="btn-start">Start</button>
+            <button class="btn-pause" data-testid="btn-pause">Pause</button>
+            <button class="btn-reset" data-testid="btn-reset">Reset</button>
+            <button class="btn-skip" data-testid="btn-skip">Skip</button>
+        </div>
+
+        <div class="settings-section">
+            <h2>Settings</h2>
+            <div class="setting-group">
+                <label for="setting-work">Work Duration (minutes):</label>
+                <input type="number" id="setting-work" data-testid="setting-work" min="1" max="60" value="25">
+            </div>
+            <div class="setting-group">
+                <label for="setting-break">Break Duration (minutes):</label>
+                <input type="number" id="setting-break" data-testid="setting-break" min="1" max="30" value="5">
+            </div>
+            <button class="btn-save-settings" data-testid="btn-save-settings">Save Settings</button>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let state = {
+            workDuration: 25 * 60,      // seconds
+            breakDuration: 5 * 60,      // seconds
+            timeRemaining: 25 * 60,     // seconds
+            phase: 'work',              // 'work' or 'break'
+            isRunning: false,
+            cycleCount: 0,
+            intervalId: null
+        };
+
+        // DOM Elements
+        const timerDisplay = document.querySelector('[data-testid="timer-display"]');
+        const phaseDisplay = document.querySelector('[data-testid="phase-display"]');
+        const cycleCountDisplay = document.querySelector('[data-testid="cycle-count"]');
+        const btnStart = document.querySelector('[data-testid="btn-start"]');
+        const btnPause = document.querySelector('[data-testid="btn-pause"]');
+        const btnReset = document.querySelector('[data-testid="btn-reset"]');
+        const btnSkip = document.querySelector('[data-testid="btn-skip"]');
+        const settingWork = document.querySelector('[data-testid="setting-work"]');
+        const settingBreak = document.querySelector('[data-testid="setting-break"]');
+        const btnSaveSettings = document.querySelector('[data-testid="btn-save-settings"]');
+
+        // Initialize from localStorage
+        function loadSettings() {
+            const savedWorkDuration = localStorage.getItem('workDuration');
+            const savedBreakDuration = localStorage.getItem('breakDuration');
+            const savedCycleCount = localStorage.getItem('cycleCount');
+
+            if (savedWorkDuration) {
+                state.workDuration = parseInt(savedWorkDuration);
+                settingWork.value = state.workDuration / 60;
+            }
+            if (savedBreakDuration) {
+                state.breakDuration = parseInt(savedBreakDuration);
+                settingBreak.value = state.breakDuration / 60;
+            }
+            if (savedCycleCount) {
+                state.cycleCount = parseInt(savedCycleCount);
+            }
+
+            state.timeRemaining = state.workDuration;
+            updateDisplay();
+        }
+
+        // Format time for display
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        // Update display
+        function updateDisplay() {
+            timerDisplay.textContent = formatTime(state.timeRemaining);
+            phaseDisplay.textContent = state.phase;
+            cycleCountDisplay.textContent = `Cycles: ${state.cycleCount}`;
+        }
+
+        // Start timer
+        function startTimer() {
+            if (state.isRunning) return;
+
+            state.isRunning = true;
+            state.intervalId = setInterval(() => {
+                if (state.timeRemaining > 0) {
+                    state.timeRemaining--;
+                    updateDisplay();
+                } else {
+                    // Timer reached zero
+                    transitionPhase();
+                }
+            }, 1000);
+        }
+
+        // Pause timer
+        function pauseTimer() {
+            state.isRunning = false;
+            if (state.intervalId) {
+                clearInterval(state.intervalId);
+                state.intervalId = null;
+            }
+        }
+
+        // Reset timer
+        function resetTimer() {
+            pauseTimer();
+            if (state.phase === 'work') {
+                state.timeRemaining = state.workDuration;
+            } else {
+                state.timeRemaining = state.breakDuration;
+            }
+            updateDisplay();
+        }
+
+        // Skip to next phase
+        function skipPhase() {
+            pauseTimer();
+            transitionPhase();
+        }
+
+        // Transition to next phase
+        function transitionPhase() {
+            pauseTimer();
+
+            if (state.phase === 'work') {
+                state.phase = 'break';
+                state.timeRemaining = state.breakDuration;
+            } else {
+                state.phase = 'work';
+                state.cycleCount++;
+                state.timeRemaining = state.workDuration;
+                localStorage.setItem('cycleCount', state.cycleCount);
+            }
+
+            updateDisplay();
+        }
+
+        // Save settings
+        function saveSettings() {
+            const workMinutes = parseInt(settingWork.value);
+            const breakMinutes = parseInt(settingBreak.value);
+
+            if (workMinutes > 0 && breakMinutes > 0) {
+                state.workDuration = workMinutes * 60;
+                state.breakDuration = breakMinutes * 60;
+
+                localStorage.setItem('workDuration', state.workDuration);
+                localStorage.setItem('breakDuration', state.breakDuration);
+
+                // Reset to new work duration if not running
+                if (!state.isRunning) {
+                    if (state.phase === 'work') {
+                        state.timeRemaining = state.workDuration;
+                    } else {
+                        state.timeRemaining = state.breakDuration;
+                    }
+                    updateDisplay();
+                }
+            }
+        }
+
+        // Event listeners
+        btnStart.addEventListener('click', startTimer);
+        btnPause.addEventListener('click', pauseTimer);
+        btnReset.addEventListener('click', resetTimer);
+        btnSkip.addEventListener('click', skipPhase);
+        btnSaveSettings.addEventListener('click', saveSettings);
+
+        // Initialize
+        loadSettings();
+    </script>
+</body>
+</html>

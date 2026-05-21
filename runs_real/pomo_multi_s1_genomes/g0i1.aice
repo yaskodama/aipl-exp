@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pomodoro Timer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .display-section {
+            background: #f5f5f5;
+            border-radius: 12px;
+            padding: 30px;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .timer-display {
+            font-size: 64px;
+            font-weight: bold;
+            color: #667eea;
+            font-family: 'Courier New', monospace;
+            margin-bottom: 15px;
+            letter-spacing: 2px;
+        }
+
+        .phase-display {
+            font-size: 20px;
+            color: #666;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .phase-display.work {
+            color: #e74c3c;
+        }
+
+        .phase-display.break {
+            color: #27ae60;
+        }
+
+        .cycle-count {
+            font-size: 16px;
+            color: #999;
+        }
+
+        .controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 30px;
+        }
+
+        button {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-start {
+            background: #27ae60;
+            color: white;
+            grid-column: 1;
+        }
+
+        .btn-start:hover {
+            background: #229954;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(39, 174, 96, 0.3);
+        }
+
+        .btn-pause {
+            background: #f39c12;
+            color: white;
+            grid-column: 2;
+        }
+
+        .btn-pause:hover {
+            background: #e67e22;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(243, 156, 18, 0.3);
+        }
+
+        .btn-reset {
+            background: #3498db;
+            color: white;
+            grid-column: 1;
+        }
+
+        .btn-reset:hover {
+            background: #2980b9;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(52, 152, 219, 0.3);
+        }
+
+        .btn-skip {
+            background: #9b59b6;
+            color: white;
+            grid-column: 2;
+        }
+
+        .btn-skip:hover {
+            background: #8e44ad;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(155, 89, 182, 0.3);
+        }
+
+        .settings-section {
+            background: #f9f9f9;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .settings-section h3 {
+            font-size: 14px;
+            color: #333;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .setting-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .setting-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .setting-item label {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .setting-item input {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .setting-item input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .btn-save-settings {
+            background: #667eea;
+            color: white;
+            width: 100%;
+            padding: 12px;
+            margin-top: 10px;
+        }
+
+        .btn-save-settings:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Pomodoro Timer</h1>
+        </div>
+
+        <div class="display-section">
+            <div class="timer-display" data-testid="timer-display">25:00</div>
+            <div class="phase-display work" data-testid="phase-display">work</div>
+            <div class="cycle-count" data-testid="cycle-count">Cycles: 0</div>
+        </div>
+
+        <div class="controls">
+            <button class="btn-start" data-testid="btn-start">Start</button>
+            <button class="btn-pause" data-testid="btn-pause">Pause</button>
+            <button class="btn-reset" data-testid="btn-reset">Reset</button>
+            <button class="btn-skip" data-testid="btn-skip">Skip</button>
+        </div>
+
+        <div class="settings-section">
+            <h3>Settings</h3>
+            <div class="setting-group">
+                <div class="setting-item">
+                    <label for="setting-work">Work (min)</label>
+                    <input type="number" id="setting-work" data-testid="setting-work" min="1" max="60" value="25">
+                </div>
+                <div class="setting-item">
+                    <label for="setting-break">Break (min)</label>
+                    <input type="number" id="setting-break" data-testid="setting-break" min="1" max="60" value="5">
+                </div>
+            </div>
+            <button class="btn-save-settings" data-testid="btn-save-settings">Save Settings</button>
+        </div>
+    </div>
+
+    <script>
+        class PomodoroTimer {
+            constructor() {
+                this.workDuration = 25 * 60; // seconds
+                this.breakDuration = 5 * 60; // seconds
+                this.timeRemaining = this.workDuration;
+                this.isRunning = false;
+                this.phase = 'work'; // 'work' or 'break'
+                this.cycleCount = 0;
+                this.intervalId = null;
+
+                this.loadFromLocalStorage();
+                this.initializeElements();
+                this.attachEventListeners();
+                this.updateDisplay();
+            }
+
+            loadFromLocalStorage() {
+                const savedWorkDuration = localStorage.getItem('pomodoroWorkDuration');
+                const savedBreakDuration = localStorage.getItem('pomodoroBreakDuration');
+                const savedCycleCount = localStorage.getItem('pomodoroCycleCount');
+
+                if (savedWorkDuration) {
+                    this.workDuration = parseInt(savedWorkDuration) * 60;
+                }
+                if (savedBreakDuration) {
+                    this.breakDuration = parseInt(savedBreakDuration) * 60;
+                }
+                if (savedCycleCount) {
+                    this.cycleCount = parseInt(savedCycleCount);
+                }
+
+                this.timeRemaining = this.workDuration;
+            }
+
+            initializeElements() {
+                this.timerDisplay = document.querySelector('[data-testid="timer-display"]');
+                this.phaseDisplay = document.querySelector('[data-testid="phase-display"]');
+                this.cycleDisplay = document.querySelector('[data-testid="cycle-count"]');
+                this.btnStart = document.querySelector('[data-testid="btn-start"]');
+                this.btnPause = document.querySelector('[data-testid="btn-pause"]');
+                this.btnReset = document.querySelector('[data-testid="btn-reset"]');
+                this.btnSkip = document.querySelector('[data-testid="btn-skip"]');
+                this.settingWork = document.querySelector('[data-testid="setting-work"]');
+                this.settingBreak = document.querySelector('[data-testid="setting-break"]');
+                this.btnSaveSettings = document.querySelector('[data-testid="btn-save-settings"]');
+
+                // Initialize settings inputs
+                this.settingWork.value = this.workDuration / 60;
+                this.settingBreak.value = this.breakDuration / 60;
+            }
+
+            attachEventListeners() {
+                this.btnStart.addEventListener('click', () => this.start());
+                this.btnPause.addEventListener('click', () => this.pause());
+                this.btnReset.addEventListener('click', () => this.reset());
+                this.btnSkip.addEventListener('click', () => this.skip());
+                this.btnSaveSettings.addEventListener('click', () => this.saveSettings());
+            }
+
+            start() {
+                if (this.isRunning) return;
+                this.isRunning = true;
+
+                this.intervalId = setInterval(() => {
+                    this.timeRemaining--;
+
+                    if (this.timeRemaining < 0) {
+                        this.timeRemaining = 0;
+                        this.clearInterval();
+                        this.transitionPhase();
+                    }
+
+                    this.updateDisplay();
+                }, 1000);
+
+                this.updateDisplay();
+            }
+
+            pause() {
+                this.isRunning = false;
+                if (this.intervalId !== null) {
+                    clearInterval(this.intervalId);
+                    this.intervalId = null;
+                }
+                this.updateDisplay();
+            }
+
+            reset() {
+                this.pause();
+                if (this.phase === 'work') {
+                    this.timeRemaining = this.workDuration;
+                } else {
+                    this.timeRemaining = this.breakDuration;
+                }
+                this.updateDisplay();
+            }
+
+            skip() {
+                this.pause();
+                this.transitionPhase();
+            }
+
+            transitionPhase() {
+                if (this.phase === 'work') {
+                    this.phase = 'break';
+                    this.timeRemaining = this.breakDuration;
+                } else {
+                    this.phase = 'work';
+                    this.timeRemaining = this.workDuration;
+                    this.cycleCount++;
+                    localStorage.setItem('pomodoroCycleCount', this.cycleCount);
+                }
+                this.updateDisplay();
+            }
+
+            saveSettings() {
+                const newWorkDuration = parseInt(this.settingWork.value) * 60;
+                const newBreakDuration = parseInt(this.settingBreak.value) * 60;
+
+                this.workDuration = newWorkDuration;
+                this.breakDuration = newBreakDuration;
+
+                localStorage.setItem('pomodoroWorkDuration', this.settingWork.value);
+                localStorage.setItem('pomodoroBreakDuration', this.settingBreak.value);
+
+                if (this.phase === 'work') {
+                    this.timeRemaining = this.workDuration;
+                } else {
+                    this.timeRemaining = this.breakDuration;
+                }
+
+                this.updateDisplay();
+            }
+
+            clearInterval() {
+                if (this.intervalId !== null) {
+                    clearInterval(this.intervalId);
+                    this.intervalId = null;
+                }
+            }
+
+            updateDisplay() {
+                // Format timer display
+                const minutes = Math.floor(this.timeRemaining / 60);
+                const seconds = this.timeRemaining % 60;
+                const formattedTime = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                this.timerDisplay.textContent = formattedTime;
+
+                // Update phase display
+                this.phaseDisplay.textContent = this.phase;
+                this.phaseDisplay.className = `phase-display ${this.phase}`;
+
+                // Update cycle count
+                this.cycleDisplay.textContent = `Cycles: ${this.cycleCount}`;
+            }
+        }
+
+        // Initialize the timer when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new PomodoroTimer();
+        });
+    </script>
+</body>
+</html>

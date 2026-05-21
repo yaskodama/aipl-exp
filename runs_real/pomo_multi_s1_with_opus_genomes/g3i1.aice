@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Pomodoro Timer</title>
+<style>
+/* from parent A */
+body { font-family: sans-serif; max-width: 500px; margin: 20px auto; padding: 20px; background: #f5f5f5; }
+.timer-display { font-size: 60px; text-align: center; font-family: monospace; margin: 20px 0; }
+.phase-display { font-size: 24px; text-align: center; text-transform: uppercase; }
+.cycle-count { font-size: 18px; text-align: center; margin: 10px 0; }
+.buttons { display: flex; justify-content: center; gap: 10px; margin: 20px 0; flex-wrap: wrap; }
+button { padding: 10px 20px; font-size: 16px; cursor: pointer; }
+.settings { background: white; padding: 15px; border-radius: 5px; }
+.settings label { display: block; margin: 10px 0; }
+.settings input { width: 80px; padding: 5px; }
+</style>
+</head>
+<body>
+<h1 style="text-align:center;">Pomodoro Timer</h1>
+<div class="phase-display" data-testid="phase-display">work</div>
+<div class="timer-display" data-testid="timer-display">25:00</div>
+<div class="cycle-count">Cycles: <span data-testid="cycle-count">0</span></div>
+<div class="buttons">
+  <button data-testid="btn-start">Start</button>
+  <button data-testid="btn-pause">Pause</button>
+  <button data-testid="btn-reset">Reset</button>
+  <button data-testid="btn-skip">Skip</button>
+</div>
+<div class="settings">
+  <h3>Settings</h3>
+  <label>Work (min): <input type="number" data-testid="setting-work" value="25" min="1"></label>
+  <label>Break (min): <input type="number" data-testid="setting-break" value="5" min="1"></label>
+  <button data-testid="btn-save-settings">Save Settings</button>
+</div>
+
+<script>
+(function() {
+  const STORAGE_KEY = 'pomodoro_state'; // from parent A
+
+  // Load settings and cycle count from localStorage
+  let workMinutes = 25; // from parent B
+  let breakMinutes = 5; // from parent B
+  let cycleCount = 0; // from parent B
+
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); // from parent B
+    if (typeof saved.workMinutes === 'number') workMinutes = saved.workMinutes; // from parent B
+    if (typeof saved.breakMinutes === 'number') breakMinutes = saved.breakMinutes; // from parent B
+    if (typeof saved.cycleCount === 'number') cycleCount = saved.cycleCount; // from parent B
+  } catch(e) {} // from parent B
+
+  let phase = 'work'; // from parent A
+  let remainingSeconds = workMinutes * 60; // from parent A
+  let intervalId = null; // from parent B
+  let running = false; // from parent B
+
+  const timerDisplay = document.querySelector('[data-testid="timer-display"]'); // from parent B
+  const phaseDisplay = document.querySelector('[data-testid="phase-display"]'); // from parent B
+  const cycleCountEl = document.querySelector('[data-testid="cycle-count"]'); // from parent B
+  const btnStart = document.querySelector('[data-testid="btn-start"]'); // from parent B
+  const btnPause = document.querySelector('[data-testid="btn-pause"]'); // from parent B
+  const btnReset = document.querySelector('[data-testid="btn-reset"]'); // from parent B
+  const btnSkip = document.querySelector('[data-testid="btn-skip"]'); // from parent B
+  const settingWork = document.querySelector('[data-testid="setting-work"]'); // from parent A
+  const settingBreak = document.querySelector('[data-testid="setting-break"]'); // from parent A
+  const btnSaveSettings = document.querySelector('[data-testid="btn-save-settings"]'); // from parent A
+
+  settingWork.value = workMinutes; // from parent A
+  settingBreak.value = breakMinutes; // from parent A
+
+  function persist() { // from parent B
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      workMinutes, breakMinutes, cycleCount
+    }));
+  }
+
+  function formatTime(sec) { // from parent A
+    if (sec < 0) sec = 0;
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return m + ':' + (s < 10 ? '0' + s : s);
+  }
+
+  function render() { // from parent B
+    timerDisplay.textContent = formatTime(remainingSeconds);
+    phaseDisplay.textContent = phase;
+    cycleCountEl.textContent = cycleCount;
+  }
+
+  function getPhaseSeconds(p) { // from parent A
+    return (p === 'work' ? workMinutes : breakMinutes) * 60;
+  }
+
+  function nextPhase() { // from parent B
+    if (phase === 'work') {
+      phase = 'break';
+    } else {
+      phase = 'work';
+      cycleCount += 1;
+      persist();
+    }
+    remainingSeconds = getPhaseSeconds(phase);
+    render();
+  }
+
+  function tick() { // from parent A
+    remainingSeconds -= 1;
+    if (remainingSeconds <= 0) {
+      remainingSeconds = 0;
+      render();
+      stopInterval();
+      running = false;
+      nextPhase();
+    } else {
+      render();
+    }
+  }
+
+  function startInterval() { // from parent B
+    if (intervalId !== null) return;
+    running = true;
+    intervalId = setInterval(tick, 1000);
+  }
+
+  function stopInterval() { // from parent A
+    if (intervalId !== null) {
+      clearInterval(intervalId);
+      intervalId = null;
+    }
+  }
+
+  btnStart.addEventListener('click', function() { // from parent A
+    if (!running) {
+      startInterval();
+    }
+  });
+
+  btnPause.addEventListener('click', function() { // from parent B
+    stopInterval();
+    running = false;
+  });
+
+  btnReset.addEventListener('click', function() { // from parent A
+    stopInterval();
+    running = false;
+    remainingSeconds = getPhaseSeconds(phase);
+    render();
+  });
+
+  btnSkip.addEventListener('click', function() { // from parent B
+    const wasRunning = running;
+    stopInterval();
+    running = false;
+    nextPhase();
+    if (wasRunning) {
+      startInterval();
+    }
+  });
+
+  btnSaveSettings.addEventListener('click', function() { // from parent A
+    const w = parseInt(settingWork.value, 10);
+    const b = parseInt(settingBreak.value, 10);
+    if (!isNaN(w) && w > 0) workMinutes = w;
+    if (!isNaN(b) && b > 0) breakMinutes = b;
+    persist();
+  });
+
+  render(); // from parent B
+})();
+</script>
+</body>
+</html>

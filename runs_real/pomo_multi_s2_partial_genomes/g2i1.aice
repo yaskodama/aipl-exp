@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>Pomodoro</title>
+<style>body{font-family:sans-serif;max-width:480px;margin:20px auto;padding:20px;background:#f5f5f5}h1{text-align:center}.display{text-align:center;padding:20px;background:#fff;border-radius:8px;margin-bottom:16px}.timer{font-size:64px;font-weight:700;font-family:monospace}.phase{font-size:24px;margin:8px 0;text-transform:uppercase;color:#555}.cycle{font-size:18px;color:#777}.controls,.settings{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:16px}.settings{background:#fff;padding:16px;border-radius:8px}.settings label{display:flex;align-items:center;gap:8px}.settings input{width:60px;padding:4px}button{padding:10px 16px;font-size:16px;cursor:pointer;border:1px solid #ccc;background:#fff;border-radius:4px}button:hover{background:#eee}</style>
+</head>
+<body>
+<h1>Pomodoro Timer</h1>
+<div class="display">
+  <div class="timer" data-testid="timer-display">25:00</div>
+  <div class="phase" data-testid="phase-display">work</div>
+  <div class="cycle">Cycle: <span data-testid="cycle-count">0</span></div>
+</div>
+<div class="controls">
+  <button data-testid="btn-start">Start</button>
+  <button data-testid="btn-pause">Pause</button>
+  <button data-testid="btn-reset">Reset</button>
+  <button data-testid="btn-skip">Skip</button>
+</div>
+<div class="settings">
+  <label>Work (min): <input type="number" data-testid="setting-work" value="25" min="1"></label>
+  <label>Break (min): <input type="number" data-testid="setting-break" value="5" min="1"></label>
+  <button data-testid="btn-save-settings">Save</button>
+</div>
+<script>
+(function(){
+const KEY='pomodoro_state_v1';
+const $=s=>document.querySelector(s);
+const timerEl=$('[data-testid="timer-display"]'),phaseEl=$('[data-testid="phase-display"]'),cycleEl=$('[data-testid="cycle-count"]');
+const startBtn=$('[data-testid="btn-start"]'),pauseBtn=$('[data-testid="btn-pause"]'),resetBtn=$('[data-testid="btn-reset"]'),skipBtn=$('[data-testid="btn-skip"]');
+const workInput=$('[data-testid="setting-work"]'),breakInput=$('[data-testid="setting-break"]'),saveBtn=$('[data-testid="btn-save-settings"]');
+let saved={};
+try{const r=localStorage.getItem(KEY);if(r) saved=JSON.parse(r)||{}}catch(e){saved={}}
+const numOr=(v,def)=>{const n=Number(v);return Number.isFinite(n)&&n>0?n:def};
+const intOr=(v,def)=>{const n=Number(v);return Number.isFinite(n)?Math.floor(n):def};
+let workMinutes=numOr(saved.workMinutes,25);
+let breakMinutes=numOr(saved.breakMinutes,5);
+let cycleCount=intOr(saved.cycleCount,0);
+workInput.value=workMinutes;breakInput.value=breakMinutes;
+let phase='work',remaining=workMinutes*60,intervalId=null;
+const persist=()=>{try{localStorage.setItem(KEY,JSON.stringify({workMinutes,breakMinutes,cycleCount}))}catch(e){}};
+const fmt=s=>{if(s<0)s=0;const m=Math.floor(s/60),sec=s%60;return m+':'+(sec<10?'0'+sec:sec)};
+const render=()=>{timerEl.textContent=fmt(remaining);phaseEl.textContent=phase;cycleEl.textContent=cycleCount};
+const dur=p=> (p==='work'?workMinutes:breakMinutes)*60;
+function tick(){remaining-=1; if(remaining<=0){ if(phase==='work'){phase='break'; remaining=dur('break')}else{phase='work'; cycleCount++; persist(); remaining=dur('work')} } render() }
+function start(){ if(intervalId!==null) return; intervalId=setInterval(tick,1000) }
+function pause(){ if(intervalId!==null){clearInterval(intervalId);intervalId=null} }
+function reset(){ pause(); remaining=dur(phase); render() }
+function skip(){ pause(); if(phase==='work'){phase='break'}else{phase='work';cycleCount++;persist()} remaining=dur(phase); render() }
+function saveSettings(){
+  const oldDur=dur(phase);
+  const w=parseInt(workInput.value,10),b=parseInt(breakInput.value,10);
+  if(!isNaN(w)&&w>0) workMinutes=w;
+  if(!isNaN(b)&&b>0) breakMinutes=b;
+  persist();
+  if(intervalId===null && remaining===oldDur){ remaining=dur(phase); }
+  render();
+}
+startBtn.addEventListener('click',start);
+pauseBtn.addEventListener('click',pause);
+resetBtn.addEventListener('click',reset);
+skipBtn.addEventListener('click',skip);
+saveBtn.addEventListener('click',saveSettings);
+render();
+})();
+</script>
+</body>
+</html>

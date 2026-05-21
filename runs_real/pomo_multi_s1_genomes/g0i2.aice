@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<title>Pomodoro Timer</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+  :root { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; }
+  body { display:flex; align-items:center; justify-content:center; min-height:100vh; margin:0; background:#f3f4f6; color:#111827; }
+  .container { background:#fff; padding:24px; border-radius:8px; box-shadow:0 6px 18px rgba(0,0,0,0.08); width:320px; }
+  .display { text-align:center; margin-bottom:16px; }
+  .timer { font-size:48px; font-weight:700; margin-bottom:6px; }
+  .meta { display:flex; justify-content:space-between; font-size:14px; color:#374151; }
+  .controls { display:flex; gap:8px; margin-top:16px; }
+  button { flex:1; padding:8px 10px; border-radius:6px; border:1px solid #e5e7eb; background:#fff; cursor:pointer; font-weight:600; }
+  button:active { transform:translateY(1px); }
+  .btn-primary { background:#2563eb; color:#fff; border-color:#2563eb; }
+  .btn-danger { background:#ef4444; color:#fff; border-color:#ef4444; }
+  .settings { margin-top:18px; border-top:1px dashed #e5e7eb; padding-top:12px; display:flex; gap:8px; align-items:center; }
+  .settings label { font-size:13px; color:#374151; }
+  .settings input[type="number"] { width:64px; padding:6px 8px; border-radius:6px; border:1px solid #e5e7eb; }
+  .save { padding:8px 10px; border-radius:6px; border:1px solid #e5e7eb; background:#10b981; color:#fff; cursor:pointer; font-weight:600; }
+  .small { font-size:12px; color:#6b7280; text-align:center; margin-top:8px; }
+</style>
+</head>
+<body>
+  <div class="container" role="application" aria-label="Pomodoro Timer">
+    <div class="display">
+      <div class="timer" data-testid="timer-display">25:00</div>
+      <div class="meta">
+        <div data-testid="phase-display">work</div>
+        <div>Cycles: <span data-testid="cycle-count">0</span></div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button data-testid="btn-start" id="btnStart" class="btn-primary">Start</button>
+      <button data-testid="btn-pause" id="btnPause">Pause</button>
+      <button data-testid="btn-reset" id="btnReset" class="btn-danger">Reset</button>
+      <button data-testid="btn-skip" id="btnSkip">Skip</button>
+    </div>
+
+    <div class="settings">
+      <label>Work
+        <input type="number" min="1" id="settingWork" data-testid="setting-work" />
+      </label>
+      <label>Break
+        <input type="number" min="1" id="settingBreak" data-testid="setting-break" />
+      </label>
+      <button id="btnSaveSettings" data-testid="btn-save-settings" class="save">Save</button>
+    </div>
+
+    <div class="small">Single-file Pomodoro timer — settings & cycles persist after reload.</div>
+  </div>
+
+<script>
+(function(){
+  // DOM elements
+  const displayEl = document.querySelector('[data-testid="timer-display"]');
+  const phaseEl = document.querySelector('[data-testid="phase-display"]');
+  const cycleEl = document.querySelector('[data-testid="cycle-count"]');
+  const btnStart = document.querySelector('[data-testid="btn-start"]');
+  const btnPause = document.querySelector('[data-testid="btn-pause"]');
+  const btnReset = document.querySelector('[data-testid="btn-reset"]');
+  const btnSkip = document.querySelector('[data-testid="btn-skip"]');
+  const inputWork = document.querySelector('[data-testid="setting-work"]');
+  const inputBreak = document.querySelector('[data-testid="setting-break"]');
+  const btnSaveSettings = document.querySelector('[data-testid="btn-save-settings"]');
+
+  // LocalStorage keys
+  const KEY_WORK = 'pomodoro_work';
+  const KEY_BREAK = 'pomodoro_break';
+  const KEY_CYCLES = 'pomodoro_cycles';
+
+  // Load settings & cycles from localStorage
+  function loadNumber(key, fallback) {
+    const v = localStorage.getItem(key);
+    return v !== null ? Number(v) : fallback;
+  }
+
+  let workMinutes = loadNumber(KEY_WORK, 25);
+  let breakMinutes = loadNumber(KEY_BREAK, 5);
+  let cycleCount = loadNumber(KEY_CYCLES, 0);
+
+  // State
+  let phase = 'work'; // 'work' or 'break'
+  let remainingSeconds = workMinutes * 60;
+  let intervalId = null;
+  let running = false;
+
+  // Initialize UI
+  function initUI() {
+    updateDisplay();
+    phaseEl.textContent = phase;
+    cycleEl.textContent = String(cycleCount);
+    inputWork.value = String(workMinutes);
+    inputBreak.value = String(breakMinutes);
+  }
+
+  function saveSettingsToStorage() {
+    localStorage.setItem(KEY_WORK, String(workMinutes));
+    localStorage.setItem(KEY_BREAK, String(breakMinutes));
+  }
+
+  function saveCycleToStorage() {
+    localStorage.setItem(KEY_CYCLES, String(cycleCount));
+  }
+
+  function formatTime(sec) {
+    if (sec < 0) sec = 0;
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return m + ':' + String(s).padStart(2, '0');
+  }
+
+  function updateDisplay() {
+    displayEl.textContent = formatTime(remainingSeconds);
+    phaseEl.textContent = phase;
+    cycleEl.textContent = String(cycleCount);
+  }
+
+  function startTimer() {
+    if (running) return;
+    running = true;
+    // call tick every 1s
+    intervalId = setInterval(() => {
+      remainingSeconds -= 1;
+      if (remainingSeconds <= 0) {
+        // Ensure display shows 0:00 before transition if needed, but transition now
+        remainingSeconds = 0;
+        updateDisplay();
+        handlePhaseComplete();
+      } else {
+        updateDisplay();
+      }
+    }, 1000);
+  }
+
+  function pauseTimer() {
+    if (!running) return;
+    running = false;
+    if (intervalId !== null) {
+      clearInterval(intervalId);
+      intervalId = null;
+    }
+  }
+
+  function resetTimer() {
+    // Reset current phase's remaining time to its configured duration and pause.
+    pauseTimer();
+    remainingSeconds = (phase === 'work' ? workMinutes : breakMinutes) * 60;
+    updateDisplay();
+  }
+
+  function skipPhase() {
+    // Move to next phase, set remaining accordingly. Preserve running state.
+    const wasRunning = running;
+    pauseTimer();
+    if (phase === 'work') {
+      phase = 'break';
+      remainingSeconds = breakMinutes * 60;
+    } else {
+      phase = 'work';
+      remainingSeconds = workMinutes * 60;
+    }
+    updateDisplay();
+    if (wasRunning) startTimer();
+  }
+
+  function handlePhaseComplete() {
+    // Transition phases when a phase completes.
+    if (phase === 'work') {
+      phase = 'break';
+      remainingSeconds = breakMinutes * 60;
+      updateDisplay();
+      // keep running (continue into break)
+    } else {
+      // break finished -> increment cycle and go to work
+      cycleCount += 1;
+      saveCycleToStorage();
+      phase = 'work';
+      remainingSeconds = workMinutes * 60;
+      updateDisplay();
+      // keep running (continue into work)
+    }
+  }
+
+  // Button event handlers
+  btnStart.addEventListener('click', () => {
+    startTimer();
+  });
+
+  btnPause.addEventListener('click', () => {
+    pauseTimer();
+  });
+
+  btnReset.addEventListener('click', () => {
+    resetTimer();
+  });
+
+  btnSkip.addEventListener('click', () => {
+    skipPhase();
+  });
+
+  btnSaveSettings.addEventListener('click', () => {
+    // Read inputs and save to localStorage. Do not change current remaining automatically.
+    const w = Number(inputWork.value);
+    const b = Number(inputBreak.value);
+    // Validate: ensure positive integers; if invalid, ignore.
+    if (!Number.isFinite(w) || w <= 0) return;
+    if (!Number.isFinite(b) || b <= 0) return;
+    workMinutes = Math.floor(w);
+    breakMinutes = Math.floor(b);
+    saveSettingsToStorage();
+    // If the app is at initial load state (phase is work and remaining equals previous work full),
+    // keep according to spec: startup uses saved settings. But per spec, new setting takes effect on reset.
+    // We will not change remainingSeconds here to avoid surprising the user; tests will call reset to apply.
+  });
+
+  // Initialize on load
+  initUI();
+
+  // Ensure state persists cycles and settings on unload (just in case)
+  window.addEventListener('beforeunload', () => {
+    saveSettingsToStorage();
+    saveCycleToStorage();
+  });
+
+  // Expose for debugging (no harm)
+  window.__pomodoro = {
+    start: startTimer,
+    pause: pauseTimer,
+    reset: resetTimer,
+    skip: skipPhase,
+    getState: () => ({ phase, remainingSeconds, workMinutes, breakMinutes, cycleCount, running })
+  };
+})();
+</script>
+</body>
+</html>

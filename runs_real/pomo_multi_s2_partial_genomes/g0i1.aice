@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pomodoro Timer</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+
+    .app {
+      background: #16213e;
+      border-radius: 20px;
+      padding: 2.5rem 2rem;
+      width: 400px;
+      max-width: 95vw;
+      box-shadow: 0 12px 48px rgba(0,0,0,0.5);
+      text-align: center;
+    }
+
+    h1 {
+      font-size: 1.6rem;
+      color: #e94560;
+      margin-bottom: 1.6rem;
+      letter-spacing: 1px;
+    }
+
+    #timer-display {
+      font-size: 5.5rem;
+      font-weight: 700;
+      font-family: 'Courier New', Courier, monospace;
+      color: #fff;
+      line-height: 1;
+      margin-bottom: 0.5rem;
+      letter-spacing: 2px;
+    }
+
+    #phase-display {
+      font-size: 1rem;
+      text-transform: uppercase;
+      letter-spacing: 5px;
+      color: #e94560;
+      margin-bottom: 0.4rem;
+    }
+
+    .cycle-info {
+      font-size: 0.85rem;
+      color: #7a7a9a;
+      margin-bottom: 2rem;
+    }
+
+    #cycle-count {
+      color: #e94560;
+      font-weight: 700;
+    }
+
+    .controls {
+      display: flex;
+      gap: 0.5rem;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 2rem;
+    }
+
+    button {
+      padding: 0.55rem 1.15rem;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 600;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+
+    button:hover  { opacity: 0.88; transform: translateY(-1px); }
+    button:active { transform: translateY(0); }
+
+    #btn-start          { background: #e94560; color: #fff; }
+    #btn-pause          { background: #f0a500; color: #fff; }
+    #btn-reset          { background: #4a4a6a; color: #fff; }
+    #btn-skip           { background: #0f3460; color: #ddd; border: 1px solid #e94560; }
+    #btn-save-settings  { background: #e94560; color: #fff; width: 100%; padding: 0.65rem; margin-top: 0.4rem; }
+
+    .settings {
+      background: #0f3460;
+      border-radius: 12px;
+      padding: 1.2rem 1.4rem;
+    }
+
+    .settings h2 {
+      font-size: 0.85rem;
+      color: #aaa;
+      margin-bottom: 1rem;
+      text-transform: uppercase;
+      letter-spacing: 3px;
+    }
+
+    .setting-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.75rem;
+    }
+
+    .setting-row label {
+      font-size: 0.9rem;
+      color: #ccc;
+    }
+
+    .setting-row input[type="number"] {
+      width: 72px;
+      padding: 0.35rem 0.4rem;
+      background: #16213e;
+      border: 1px solid #333;
+      border-radius: 6px;
+      color: #fff;
+      font-size: 0.9rem;
+      text-align: center;
+      outline: none;
+    }
+
+    .setting-row input[type="number"]:focus {
+      border-color: #e94560;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <h1>🍅 Pomodoro Timer</h1>
+
+    <div data-testid="timer-display" id="timer-display">25:00</div>
+    <div data-testid="phase-display" id="phase-display">work</div>
+    <div class="cycle-info">
+      Cycles completed:&nbsp;<span data-testid="cycle-count" id="cycle-count">0</span>
+    </div>
+
+    <div class="controls">
+      <button data-testid="btn-start" id="btn-start">▶ Start</button>
+      <button data-testid="btn-pause" id="btn-pause">⏸ Pause</button>
+      <button data-testid="btn-reset" id="btn-reset">↺ Reset</button>
+      <button data-testid="btn-skip"  id="btn-skip">⏭ Skip</button>
+    </div>
+
+    <div class="settings">
+      <h2>Settings</h2>
+      <div class="setting-row">
+        <label for="setting-work">Work (minutes)</label>
+        <input data-testid="setting-work"  id="setting-work"  type="number" min="1" max="99">
+      </div>
+      <div class="setting-row">
+        <label for="setting-break">Break (minutes)</label>
+        <input data-testid="setting-break" id="setting-break" type="number" min="1" max="99">
+      </div>
+      <button data-testid="btn-save-settings" id="btn-save-settings">Save Settings</button>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      // ── Persisted state ──────────────────────────────────────────────────────
+      let workDuration  = parseInt(localStorage.getItem('workDuration'),  10);
+      let breakDuration = parseInt(localStorage.getItem('breakDuration'), 10);
+      let cycleCount    = parseInt(localStorage.getItem('cycleCount'),    10);
+
+      if (isNaN(workDuration)  || workDuration  < 1) workDuration  = 25;
+      if (isNaN(breakDuration) || breakDuration < 1) breakDuration = 5;
+      if (isNaN(cycleCount)    || cycleCount    < 0) cycleCount    = 0;
+
+      // ── Runtime state ────────────────────────────────────────────────────────
+      let phase     = 'work';
+      let timeLeft  = workDuration * 60;   // seconds
+      let isRunning = false;
+      let timerId   = null;
+
+      // ── DOM refs ─────────────────────────────────────────────────────────────
+      const elTimer  = document.getElementById('timer-display');
+      const elPhase  = document.getElementById('phase-display');
+      const elCycle  = document.getElementById('cycle-count');
+      const elWork   = document.getElementById('setting-work');
+      const elBreak  = document.getElementById('setting-break');
+
+      // Initialise inputs
+      elWork.value  = workDuration;
+      elBreak.value = breakDuration;
+
+      // ── Helpers ──────────────────────────────────────────────────────────────
+      function pad(n) {
+        return n < 10 ? '0' + n : String(n);
+      }
+
+      function formatTime(sec) {
+        var m = Math.floor(sec / 60);
+        var s = sec % 60;
+        return m + ':' + pad(s);
+      }
+
+      function render() {
+        elTimer.textContent = formatTime(timeLeft);
+        elPhase.textContent = phase;
+        elCycle.textContent = cycleCount;
+      }
+
+      // ── Timer logic ──────────────────────────────────────────────────────────
+      function tick() {
+        timeLeft--;
+        if (timeLeft < 0) timeLeft = 0;
+        render();
+
+        if (timeLeft === 0) {
+          clearInterval(timerId);
+          timerId   = null;
+          isRunning = false;
+          handlePhaseEnd();
+        }
+      }
+
+      function handlePhaseEnd() {
+        if (phase === 'work') {
+          phase    = 'break';
+          timeLeft = breakDuration * 60;
+        } else {
+          phase    = 'work';
+          timeLeft = workDuration * 60;
+          cycleCount++;
+          localStorage.setItem('cycleCount', cycleCount);
+        }
+        render();
+        doStart();   // auto-start next phase
+      }
+
+      // ── Controls ─────────────────────────────────────────────────────────────
+      function doStart() {
+        if (!isRunning) {
+          isRunning = true;
+          timerId   = setInterval(tick, 1000);
+        }
+      }
+
+      function doPause() {
+        if (isRunning) {
+          isRunning = false;
+          clearInterval(timerId);
+          timerId = null;
+        }
+      }
+
+      function doReset() {
+        doPause();
+        timeLeft = (phase === 'work' ? workDuration : breakDuration) * 60;
+        render();
+      }
+
+      function doSkip() {
+        doPause();
+        if (phase === 'work') {
+          phase    = 'break';
+          timeLeft = breakDuration * 60;
+        } else {
+          phase    = 'work';
+          timeLeft = workDuration * 60;
+        }
+        render();
+      }
+
+      function doSaveSettings() {
+        var w = parseInt(elWork.value,  10);
+        var b = parseInt(elBreak.value, 10);
+        if (!isNaN(w) && w > 0) {
+          workDuration = w;
+          localStorage.setItem('workDuration', workDuration);
+        }
+        if (!isNaN(b) && b > 0) {
+          breakDuration = b;
+          localStorage.setItem('breakDuration', breakDuration);
+        }
+      }
+
+      // ── Event listeners ──────────────────────────────────────────────────────
+      document.getElementById('btn-start').addEventListener('click', doStart);
+      document.getElementById('btn-pause').addEventListener('click', doPause);
+      document.getElementById('btn-reset').addEventListener('click', doReset);
+      document.getElementById('btn-skip').addEventListener('click',  doSkip);
+      document.getElementById('btn-save-settings').addEventListener('click', doSaveSettings);
+
+      // ── Initial render ───────────────────────────────────────────────────────
+      render();
+    })();
+  </script>
+</body>
+</html>

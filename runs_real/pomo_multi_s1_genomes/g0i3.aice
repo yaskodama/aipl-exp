@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Pomodoro Timer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background-color: #f4f4f4;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .container {
+            background-color: #fff;
+            padding: 30px 40px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            width: 100%;
+            max-width: 400px;
+        }
+        h1 {
+            color: #4CAF50;
+            margin-bottom: 20px;
+        }
+        #timer-display {
+            font-size: 4em;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        #phase-display {
+            font-size: 1.5em;
+            color: #666;
+            margin-bottom: 20px;
+            text-transform: capitalize; /* "work" -> "Work" */
+        }
+        #cycle-count {
+            font-size: 1.2em;
+            color: #888;
+            margin-bottom: 30px;
+        }
+        .controls button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background-color 0.3s ease;
+        }
+        .controls button:hover {
+            background-color: #45a049;
+        }
+        .controls button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .settings {
+            margin-top: 40px;
+            border-top: 1px solid #eee;
+            padding-top: 30px;
+            text-align: left;
+        }
+        .settings h2 {
+            text-align: center;
+            color: #4CAF50;
+            margin-bottom: 20px;
+        }
+        .settings label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: bold;
+            color: #555;
+        }
+        .settings input[type="number"] {
+            width: calc(100% - 20px);
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 1em;
+        }
+        .settings button {
+            background-color: #008CBA;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background-color 0.3s ease;
+            width: 100%;
+        }
+        .settings button:hover {
+            background-color: #007bb5;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Pomodoro Timer</h1>
+        <div data-testid="timer-display" id="timer-display">25:00</div>
+        <div data-testid="phase-display" id="phase-display">work</div>
+        <div>Cycle: <span data-testid="cycle-count" id="cycle-count">0</span></div>
+
+        <div class="controls">
+            <button data-testid="btn-start">Start</button>
+            <button data-testid="btn-pause">Pause</button>
+            <button data-testid="btn-reset">Reset</button>
+            <button data-testid="btn-skip">Skip</button>
+        </div>
+
+        <div class="settings">
+            <h2>Settings</h2>
+            <label for="setting-work-input">Work Duration (minutes):</label>
+            <input type="number" data-testid="setting-work" id="setting-work-input" value="25" min="1">
+
+            <label for="setting-break-input">Break Duration (minutes):</label>
+            <input type="number" data-testid="setting-break" id="setting-break-input" value="5" min="1">
+
+            <button data-testid="btn-save-settings">Save Settings</button>
+        </div>
+    </div>
+
+    <script>
+        // DOM elements
+        const timerDisplay = document.querySelector('[data-testid="timer-display"]');
+        const phaseDisplay = document.querySelector('[data-testid="phase-display"]');
+        const cycleCountDisplay = document.querySelector('[data-testid="cycle-count"]');
+        const btnStart = document.querySelector('[data-testid="btn-start"]');
+        const btnPause = document.querySelector('[data-testid="btn-pause"]');
+        const btnReset = document.querySelector('[data-testid="btn-reset"]');
+        const btnSkip = document.querySelector('[data-testid="btn-skip"]');
+        const settingWorkInput = document.querySelector('[data-testid="setting-work"]');
+        const settingBreakInput = document.querySelector('[data-testid="setting-break"]');
+        const btnSaveSettings = document.querySelector('[data-testid="btn-save-settings"]');
+
+        // State variables
+        let workDuration = 25; // minutes, default
+        let breakDuration = 5; // minutes, default
+        let remainingTime; // seconds
+        let currentPhase = "work"; // "work" or "break"
+        let cycleCount = 0;
+        let timerId = null;
+        let isRunning = false;
+
+        // --- Helper Functions ---
+
+        /**
+         * Formats seconds into "mm:ss" string.
+         * @param {number} seconds
+         * @returns {string}
+         */
+        function formatTime(seconds) {
+            const minutes = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        /**
+         * Updates all UI elements (timer, phase, cycle count).
+         */
+        function updateDisplay() {
+            timerDisplay.textContent = formatTime(remainingTime);
+            phaseDisplay.textContent = currentPhase;
+            cycleCountDisplay.textContent = cycleCount;
+        }
+
+        /**
+         * Loads settings and cycle count from localStorage.
+         */
+        function loadSettings() {
+            const storedWorkDuration = localStorage.getItem('pomodoroWorkDuration');
+            const storedBreakDuration = localStorage.getItem('pomodoroBreakDuration');
+            const storedCycleCount = localStorage.getItem('pomodoroCycleCount');
+
+            if (storedWorkDuration && !isNaN(parseInt(storedWorkDuration, 10))) {
+                workDuration = parseInt(storedWorkDuration, 10);
+            }
+            if (storedBreakDuration && !isNaN(parseInt(storedBreakDuration, 10))) {
+                breakDuration = parseInt(storedBreakDuration, 10);
+            }
+            if (storedCycleCount && !isNaN(parseInt(storedCycleCount, 10))) {
+                cycleCount = parseInt(storedCycleCount, 10);
+            }
+        }
+
+        /**
+         * Saves current work/break durations to localStorage.
+         */
+        function saveSettings() {
+            const newWorkDuration = parseInt(settingWorkInput.value, 10);
+            const newBreakDuration = parseInt(settingBreakInput.value, 10);
+
+            if (isNaN(newWorkDuration) || newWorkDuration <= 0) {
+                alert("Work duration must be a positive number.");
+                settingWorkInput.value = workDuration; // Revert to current value
+                return;
+            }
+            if (isNaN(newBreakDuration) || newBreakDuration <= 0) {
+                alert("Break duration must be a positive number.");
+                settingBreakInput.value = breakDuration; // Revert to current value
+                return;
+            }
+
+            workDuration = newWorkDuration;
+            breakDuration = newBreakDuration;
+
+            localStorage.setItem('pomodoroWorkDuration', workDuration);
+            localStorage.setItem('pomodoroBreakDuration', breakDuration);
+
+            updateSettingsInput(); // Ensure input fields reflect saved values
+            // Requirement 10: 設定で work 時間を変更し、保存後にリセットすると新しい時間で開始
+            // This implies that resetting applies the new settings.
+            resetTimer(); 
+        }
+
+        /**
+         * Saves current cycle count to localStorage.
+         */
+        function saveCycleCount() {
+            localStorage.setItem('pomodoroCycleCount', cycleCount);
+        }
+
+        /**
+         * Updates setting input fields with current duration values.
+         */
+        function updateSettingsInput() {
+            settingWorkInput.value = workDuration;
+            settingBreakInput.value = breakDuration;
+        }
+
+        /**
+         * Sets the current phase and remaining time, then updates display.
+         * @param {"work"|"break"} phase
+         * @param {number} initialSeconds
+         */
+        function setPhase(phase, initialSeconds) {
+            currentPhase = phase;
+            remainingTime = initialSeconds;
+            updateDisplay();
+        }
+
+        /**
+         * Transitions to the next phase (work -> break, break -> work).
+         * Increments cycle count if transitioning from break to work and not a manual skip.
+         * @param {boolean} isManualSkip - True if phase change is due to skip button.
+         */
+        function nextPhase(isManualSkip = false) {
+            if (currentPhase === "work") {
+                setPhase("break", breakDuration * 60);
+            } else { // currentPhase === "break"
+                setPhase("work", workDuration * 60);
+                if (!isManualSkip) { // Only increment cycle count if not manually skipped
+                    cycleCount++;
+                    saveCycleCount();
+                }
+            }
+        }
+
+        // --- Timer Control Functions ---
+
+        /**
+         * Starts the pomodoro timer.
+         */
+        function startTimer() {
+            if (isRunning) return;
+
+            isRunning = true;
+            timerId = setInterval(() => {
+                remainingTime--;
+                updateDisplay();
+
+                if (remainingTime <= 0) {
+                    clearInterval(timerId);
+                    timerId = null;
+                    isRunning = false;
+                    
+                    nextPhase();
+                    startTimer(); // Automatically start the next phase
+                }
+            }, 1000); // 1 second
+        }
+
+        /**
+         * Pauses the pomodoro timer.
+         */
+        function pauseTimer() {
+            if (!isRunning) return;
+
+            clearInterval(timerId);
+            timerId = null;
+            isRunning = false;
+        }
+
+        /**
+         * Resets the timer to the beginning of the current phase's duration.
+         * Stops the timer if it's running.
+         */
+        function resetTimer() {
+            pauseTimer();
+            if (currentPhase === "work") {
+                remainingTime = workDuration * 60;
+            } else {
+                remainingTime = breakDuration * 60;
+            }
+            updateDisplay();
+        }
+
+        /**
+         * Skips to the next phase.
+         * Stops the timer if it's running, then starts the next phase.
+         */
+        function skipTimer() {
+            pauseTimer();
+            nextPhase(true); // true for manual skip
+            startTimer(); // Automatically start the next phase after skip
+        }
+
+        // --- Event Listeners ---
+        btnStart.addEventListener('click', startTimer);
+        btnPause.addEventListener('click', pauseTimer);
+        btnReset.addEventListener('click', resetTimer);
+        btnSkip.addEventListener('click', skipTimer);
+        btnSaveSettings.addEventListener('click', saveSettings);
+
+        // --- Initialization ---
+        document.addEventListener('DOMContentLoaded', () => {
+            loadSettings();
+            updateSettingsInput(); // Set initial values for input fields
+            
+            // Initialize remainingTime based on loaded workDuration for the initial "work" phase
+            remainingTime = workDuration * 60;
+            currentPhase = "work"; // Ensure initial phase is "work" as per requirement 2
+            
+            updateDisplay(); // Display initial state
+        });
+    </script>
+</body>
+</html>

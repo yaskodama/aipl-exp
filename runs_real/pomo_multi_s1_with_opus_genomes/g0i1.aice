@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pomodoro Timer</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    .container {
+      background: #fff;
+      border-radius: 16px;
+      padding: 40px 36px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+      text-align: center;
+      width: 380px;
+    }
+
+    h1 { color: #764ba2; margin-bottom: 24px; font-size: 1.6rem; }
+
+    [data-testid="phase-display"] {
+      font-size: 1rem;
+      text-transform: uppercase;
+      letter-spacing: 3px;
+      color: #888;
+      margin-bottom: 6px;
+    }
+
+    [data-testid="timer-display"] {
+      font-size: 5.5rem;
+      font-weight: 700;
+      color: #2d2d2d;
+      line-height: 1;
+      margin-bottom: 8px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    [data-testid="cycle-count"] {
+      font-size: 0.9rem;
+      color: #aaa;
+      margin-bottom: 28px;
+    }
+
+    .controls {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      margin-bottom: 32px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      padding: 10px 16px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 600;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+
+    button:hover { opacity: 0.82; }
+    button:active { transform: scale(0.96); }
+
+    [data-testid="btn-start"]  { background: #4CAF50; color: #fff; }
+    [data-testid="btn-pause"]  { background: #FF9800; color: #fff; }
+    [data-testid="btn-reset"]  { background: #9E9E9E; color: #fff; }
+    [data-testid="btn-skip"]   { background: #2196F3; color: #fff; }
+
+    .settings { border-top: 1px solid #eee; padding-top: 24px; }
+
+    .settings h3 { color: #666; margin-bottom: 16px; font-size: 0.95rem; }
+
+    .setting-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .setting-row label { color: #555; font-size: 0.9rem; }
+
+    .setting-row input {
+      width: 80px;
+      padding: 6px 10px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 0.95rem;
+      text-align: center;
+    }
+
+    [data-testid="btn-save-settings"] {
+      background: #764ba2;
+      color: #fff;
+      width: 100%;
+      margin-top: 6px;
+      padding: 12px;
+      font-size: 0.95rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🍅 Pomodoro</h1>
+
+    <div data-testid="phase-display">work</div>
+    <div data-testid="timer-display">25:00</div>
+    <div data-testid="cycle-count">0</div>
+
+    <div class="controls">
+      <button data-testid="btn-start">Start</button>
+      <button data-testid="btn-pause">Pause</button>
+      <button data-testid="btn-reset">Reset</button>
+      <button data-testid="btn-skip">Skip</button>
+    </div>
+
+    <div class="settings">
+      <h3>Settings</h3>
+      <div class="setting-row">
+        <label for="sw">Work (min)</label>
+        <input data-testid="setting-work" id="sw" type="number" min="1" max="99" value="25">
+      </div>
+      <div class="setting-row">
+        <label for="sb">Break (min)</label>
+        <input data-testid="setting-break" id="sb" type="number" min="1" max="99" value="5">
+      </div>
+      <button data-testid="btn-save-settings">Save Settings</button>
+    </div>
+  </div>
+
+  <script>
+    // ── State ──────────────────────────────────────────────────────────────
+    let workMinutes  = 25;
+    let breakMinutes = 5;
+    let phase        = 'work';   // 'work' | 'break'
+    let cycleCount   = 0;
+    let secondsLeft  = 25 * 60;
+    let isRunning    = false;
+    let intervalId   = null;
+
+    // ── DOM refs ───────────────────────────────────────────────────────────
+    const timerEl  = document.querySelector('[data-testid="timer-display"]');
+    const phaseEl  = document.querySelector('[data-testid="phase-display"]');
+    const cycleEl  = document.querySelector('[data-testid="cycle-count"]');
+    const inputWork  = document.querySelector('[data-testid="setting-work"]');
+    const inputBreak = document.querySelector('[data-testid="setting-break"]');
+
+    // ── Helpers ────────────────────────────────────────────────────────────
+    function formatTime(secs) {
+      const m = Math.floor(secs / 60);
+      const s = secs % 60;
+      return m + ':' + String(s).padStart(2, '0');
+    }
+
+    function render() {
+      timerEl.textContent = formatTime(secondsLeft);
+      phaseEl.textContent = phase;
+      cycleEl.textContent = String(cycleCount);
+    }
+
+    function phaseDuration(ph) {
+      return (ph === 'work' ? workMinutes : breakMinutes) * 60;
+    }
+
+    // ── Core timer logic ───────────────────────────────────────────────────
+    function startTimer() {
+      if (isRunning) return;
+      isRunning  = true;
+      intervalId = setInterval(tick, 1000);
+    }
+
+    function tick() {
+      secondsLeft--;
+      if (secondsLeft <= 0) {
+        secondsLeft = 0;
+        render();
+        clearInterval(intervalId);
+        intervalId = null;
+        isRunning  = false;
+        onPhaseEnd();
+      } else {
+        render();
+      }
+    }
+
+    function pauseTimer() {
+      if (!isRunning) return;
+      clearInterval(intervalId);
+      intervalId = null;
+      isRunning  = false;
+    }
+
+    function resetTimer() {
+      pauseTimer();
+      secondsLeft = phaseDuration(phase);
+      render();
+    }
+
+    function onPhaseEnd() {
+      if (phase === 'work') {
+        phase       = 'break';
+        secondsLeft = breakMinutes * 60;
+      } else {
+        phase       = 'work';
+        cycleCount += 1;
+        localStorage.setItem('pomo_cycles', String(cycleCount));
+        secondsLeft = workMinutes * 60;
+      }
+      render();
+      startTimer();
+    }
+
+    function skipPhase() {
+      pauseTimer();
+      if (phase === 'work') {
+        phase       = 'break';
+        secondsLeft = breakMinutes * 60;
+      } else {
+        phase       = 'work';
+        cycleCount += 1;
+        localStorage.setItem('pomo_cycles', String(cycleCount));
+        secondsLeft = workMinutes * 60;
+      }
+      render();
+    }
+
+    function saveSettings() {
+      const w = parseInt(inputWork.value,  10);
+      const b = parseInt(inputBreak.value, 10);
+      if (w > 0) {
+        workMinutes = w;
+        localStorage.setItem('pomo_work', String(workMinutes));
+      }
+      if (b > 0) {
+        breakMinutes = b;
+        localStorage.setItem('pomo_break', String(breakMinutes));
+      }
+    }
+
+    // ── Init ───────────────────────────────────────────────────────────────
+    function init() {
+      const sw = localStorage.getItem('pomo_work');
+      const sb = localStorage.getItem('pomo_break');
+      const sc = localStorage.getItem('pomo_cycles');
+
+      if (sw !== null) workMinutes  = parseInt(sw, 10);
+      if (sb !== null) breakMinutes = parseInt(sb, 10);
+      if (sc !== null) cycleCount   = parseInt(sc, 10);
+
+      inputWork.value  = workMinutes;
+      inputBreak.value = breakMinutes;
+      secondsLeft      = workMinutes * 60;
+
+      render();
+    }
+
+    // ── Event listeners ────────────────────────────────────────────────────
+    document.querySelector('[data-testid="btn-start"]').addEventListener('click', startTimer);
+    document.querySelector('[data-testid="btn-pause"]').addEventListener('click', pauseTimer);
+    document.querySelector('[data-testid="btn-reset"]').addEventListener('click', resetTimer);
+    document.querySelector('[data-testid="btn-skip"]').addEventListener('click', skipPhase);
+    document.querySelector('[data-testid="btn-save-settings"]').addEventListener('click', saveSettings);
+
+    init();
+  </script>
+</body>
+</html>

@@ -1,0 +1,35 @@
+# GA v1 — AIPL アプリ進化実験
+META problem="pomodoro"
+META condition="AIPL-multi-agent"
+META population=4
+META generations=3
+META seed=2
+META start_time="2026-05-21T13:21:31"
+META target_fitness=0.85
+META fitness_mode="quality"
+
+GEN 0
+EVENT llm_call id=c0001 agent=opus task=init tokens_in=1103 tokens_out=2474 latency_ms=23997 cost=0.067365
+INDIV id=g0i0 op=init fitness=0.7648 parents=[] agent=opus call=c0001 passed=12/12 loc=168 genome_ref="runs_real/pomo_multi_s2_genomes/g0i0.aice"
+EVENT llm_call id=c0002 agent=sonnet task=init tokens_in=1031 tokens_out=14400 latency_ms=162730 cost=0.219093
+INDIV id=g0i1 op=init fitness=0.4845 parents=[] agent=sonnet call=c0002 passed=10/12 loc=299 genome_ref="runs_real/pomo_multi_s2_genomes/g0i1.aice"
+EVENT llm_call id=c0003 agent=haiku task=init tokens_in=1030 tokens_out=3377 latency_ms=15171 cost=0.017915
+INDIV id=g0i2 op=init fitness=0.4414 parents=[] agent=haiku call=c0003 passed=12/12 loc=399 genome_ref="runs_real/pomo_multi_s2_genomes/g0i2.aice"
+EVENT llm_call id=c0004 agent=gpt5 task=init tokens_in=803 tokens_out=5439 latency_ms=44574 cost=0.055394
+INDIV id=g0i3 op=init fitness=0.4962 parents=[] agent=gpt5 call=c0004 passed=10/12 loc=289 genome_ref="runs_real/pomo_multi_s2_genomes/g0i3.aice"
+SUMMARY gen=0 best=0.7648 mean=0.5467 worst=0.4414 diversity=0.2668 elapsed_ms=273085 cumulative_cost=0.359767
+
+GEN 1
+INDIV id=g1i0 op=elite fitness=0.7648 parents=[g0i0] agent=- call=- passed=12/12 loc=168 genome_ref="runs_real/pomo_multi_s2_genomes/g0i0.aice"
+EVENT llm_call id=c0005 agent=gpt5m task=simplify tokens_in=2269 tokens_out=1498 latency_ms=20197 cost=0.003563 parents=g0i0
+INDIV id=g1i1 op=simplify fitness=0.9174 parents=[g0i0] agent=gpt5m call=c0005 passed=12/12 loc=59 genome_ref="runs_real/pomo_multi_s2_genomes/g1i1.aice"
+EVENT llm_call id=c0006 agent=gemini task=crossover tokens_in=5569 tokens_out=3190 latency_ms=85825 cost=0.038861 parents=g0i3,g0i0
+INDIV id=g1i2 op=crossover fitness=0.4833 parents=[g0i3,g0i0] agent=gemini call=c0006 passed=10/12 loc=300 genome_ref="runs_real/pomo_multi_s2_genomes/g1i2.aice"
+EVENT llm_call id=c0007 agent=flite task=mutation tokens_in=3793 tokens_out=3208 latency_ms=9872 cost=0.001662 parents=g0i3
+INDIV id=g1i3 op=mutation fitness=0.5786 parents=[g0i3] agent=flite call=c0007 passed=12/12 loc=301 genome_ref="runs_real/pomo_multi_s2_genomes/g1i3.aice"
+SUMMARY gen=1 best=0.9174 mean=0.6860 worst=0.4833 diversity=0.3985 elapsed_ms=130718 cumulative_cost=0.403854
+
+GEN 2
+INDIV id=g2i0 op=elite fitness=0.9174 parents=[g1i1] agent=- call=- passed=12/12 loc=59 genome_ref="runs_real/pomo_multi_s2_genomes/g1i1.aice"
+EVENT llm_call id=c0008 agent=opus task=mutation tokens_in=2956 tokens_out=9912 latency_ms=120658 cost=0.262580 parents=g1i1
+INDIV id=g2i1 op=mutation fitness=0.9034 parents=[g1i1] agent=opus call=c0008 passed=12/12 loc=69 genome_ref="runs_real/pomo_multi_s2_genomes/g2i1.aice"

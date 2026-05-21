@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pomodoro Timer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 500px;
+            width: 90%;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 28px;
+        }
+
+        .timer-section {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .timer-display {
+            font-size: 80px;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 15px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .phase-info {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-bottom: 20px;
+            font-size: 16px;
+            color: #666;
+        }
+
+        .phase-info div {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .label {
+            font-size: 12px;
+            text-transform: uppercase;
+            color: #999;
+            margin-bottom: 5px;
+        }
+
+        .value {
+            font-size: 20px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 30px;
+        }
+
+        button {
+            padding: 12px 20px;
+            font-size: 14px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+            grid-column: 1 / 3;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #f5f5f5;
+            color: #333;
+            border: 2px solid #ddd;
+        }
+
+        .btn-secondary:hover {
+            background: #efefef;
+            border-color: #bbb;
+        }
+
+        .btn-danger {
+            background: #ff6b6b;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #ee5a52;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(255, 107, 107, 0.4);
+        }
+
+        .settings-section {
+            background: #f9f9f9;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 30px;
+            border-top: 2px solid #eee;
+            padding-top: 30px;
+        }
+
+        .settings-section h2 {
+            font-size: 16px;
+            color: #333;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .setting-item {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 15px;
+            align-items: center;
+        }
+
+        .setting-item label {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .setting-item input {
+            padding: 8px 12px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            width: 100%;
+        }
+
+        .setting-item input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .btn-save-settings {
+            width: 100%;
+            background: #667eea;
+            color: white;
+            padding: 10px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+
+        .btn-save-settings:hover {
+            background: #5568d3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Pomodoro Timer</h1>
+
+        <div class="timer-section">
+            <div class="timer-display" data-testid="timer-display">25:00</div>
+            
+            <div class="phase-info">
+                <div>
+                    <span class="label">Phase</span>
+                    <span class="value" data-testid="phase-display">work</span>
+                </div>
+                <div>
+                    <span class="label">Cycles</span>
+                    <span class="value" data-testid="cycle-count">0</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button class="btn-primary" data-testid="btn-start">Start</button>
+            <button class="btn-secondary" data-testid="btn-pause">Pause</button>
+            <button class="btn-secondary" data-testid="btn-reset">Reset</button>
+            <button class="btn-secondary" data-testid="btn-skip">Skip</button>
+        </div>
+
+        <div class="settings-section">
+            <h2>Settings</h2>
+            <div class="setting-item">
+                <label for="setting-work">Work Time (min)</label>
+                <input type="number" id="setting-work" data-testid="setting-work" min="1" max="60" value="25">
+            </div>
+            <div class="setting-item">
+                <label for="setting-break">Break Time (min)</label>
+                <input type="number" id="setting-break" data-testid="setting-break" min="1" max="30" value="5">
+            </div>
+            <button class="btn-save-settings" data-testid="btn-save-settings">Save Settings</button>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let state = {
+            isRunning: false,
+            timeRemaining: 0,
+            phase: 'work', // 'work' or 'break'
+            cycleCount: 0,
+            workTime: 25 * 60, // in seconds
+            breakTime: 5 * 60, // in seconds
+            intervalId: null,
+            phaseStartTime: 0 // for tracking initial time of current phase
+        };
+
+        // DOM Elements
+        const timerDisplay = document.querySelector('[data-testid="timer-display"]');
+        const phaseDisplay = document.querySelector('[data-testid="phase-display"]');
+        const cycleCountDisplay = document.querySelector('[data-testid="cycle-count"]');
+        const btnStart = document.querySelector('[data-testid="btn-start"]');
+        const btnPause = document.querySelector('[data-testid="btn-pause"]');
+        const btnReset = document.querySelector('[data-testid="btn-reset"]');
+        const btnSkip = document.querySelector('[data-testid="btn-skip"]');
+        const settingWork = document.querySelector('[data-testid="setting-work"]');
+        const settingBreak = document.querySelector('[data-testid="setting-break"]');
+        const btnSaveSettings = document.querySelector('[data-testid="btn-save-settings"]');
+
+        // Initialize
+        function init() {
+            loadSettings();
+            loadCycleCount();
+            initializeTimer();
+            attachEventListeners();
+        }
+
+        function loadSettings() {
+            const savedWorkTime = localStorage.getItem('workTime');
+            const savedBreakTime = localStorage.getItem('breakTime');
+
+            if (savedWorkTime) {
+                state.workTime = parseInt(savedWorkTime);
+                settingWork.value = state.workTime / 60;
+            }
+
+            if (savedBreakTime) {
+                state.breakTime = parseInt(savedBreakTime);
+                settingBreak.value = state.breakTime / 60;
+            }
+        }
+
+        function loadCycleCount() {
+            const saved = localStorage.getItem('cycleCount');
+            if (saved) {
+                state.cycleCount = parseInt(saved);
+                updateCycleDisplay();
+            }
+        }
+
+        function saveCycleCount() {
+            localStorage.setItem('cycleCount', state.cycleCount);
+        }
+
+        function initializeTimer() {
+            state.phase = 'work';
+            state.timeRemaining = state.workTime;
+            state.phaseStartTime = state.workTime;
+            updateDisplay();
+        }
+
+        function attachEventListeners() {
+            btnStart.addEventListener('click', start);
+            btnPause.addEventListener('click', pause);
+            btnReset.addEventListener('click', reset);
+            btnSkip.addEventListener('click', skip);
+            btnSaveSettings.addEventListener('click', saveSettings);
+        }
+
+        function start() {
+            if (state.isRunning) return;
+
+            state.isRunning = true;
+            state.intervalId = setInterval(() => {
+                state.timeRemaining--;
+
+                if (state.timeRemaining < 0) {
+                    clearInterval(state.intervalId);
+                    state.isRunning = false;
+                    transitionPhase();
+                    return;
+                }
+
+                updateDisplay();
+            }, 1000);
+
+            updateDisplay();
+        }
+
+        function pause() {
+            if (!state.isRunning) return;
+
+            state.isRunning = false;
+            clearInterval(state.intervalId);
+            updateDisplay();
+        }
+
+        function reset() {
+            if (state.isRunning) {
+                clearInterval(state.intervalId);
+                state.isRunning = false;
+            }
+
+            if (state.phase === 'work') {
+                state.timeRemaining = state.workTime;
+                state.phaseStartTime = state.workTime;
+            } else {
+                state.timeRemaining = state.breakTime;
+                state.phaseStartTime = state.breakTime;
+            }
+
+            updateDisplay();
+        }
+
+        function skip() {
+            if (state.isRunning) {
+                clearInterval(state.intervalId);
+                state.isRunning = false;
+            }
+
+            transitionPhase();
+        }
+
+        function transitionPhase() {
+            if (state.phase === 'work') {
+                state.phase = 'break';
+                state.timeRemaining = state.breakTime;
+                state.phaseStartTime = state.breakTime;
+            } else {
+                state.phase = 'work';
+                state.cycleCount++;
+                saveCycleCount();
+                state.timeRemaining = state.workTime;
+                state.phaseStartTime = state.workTime;
+            }
+
+            updateDisplay();
+        }
+
+        function saveSettings() {
+            const newWorkTime = parseInt(settingWork.value) * 60;
+            const newBreakTime = parseInt(settingBreak.value) * 60;
+
+            state.workTime = newWorkTime;
+            state.breakTime = newBreakTime;
+
+            localStorage.setItem('workTime', newWorkTime);
+            localStorage.setItem('breakTime', newBreakTime);
+
+            // Reset to current phase with new time
+            if (state.phase === 'work') {
+                state.timeRemaining = state.workTime;
+                state.phaseStartTime = state.workTime;
+            } else {
+                state.timeRemaining = state.breakTime;
+                state.phaseStartTime = state.breakTime;
+            }
+
+            if (state.isRunning) {
+                clearInterval(state.intervalId);
+                state.isRunning = false;
+            }
+
+            updateDisplay();
+        }
+
+        function updateDisplay() {
+            updateTimerDisplay();
+            updatePhaseDisplay();
+            updateCycleDisplay();
+        }
+
+        function updateTimerDisplay() {
+            const minutes = Math.floor(state.timeRemaining / 60);
+            const seconds = state.timeRemaining % 60;
+            const formatted = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            timerDisplay.textContent = formatted;
+        }
+
+        function updatePhaseDisplay() {
+            phaseDisplay.textContent = state.phase;
+        }
+
+        function updateCycleDisplay() {
+            cycleCountDisplay.textContent = state.cycleCount;
+        }
+
+        // Start the app
+        init();
+    </script>
+</body>
+</html>

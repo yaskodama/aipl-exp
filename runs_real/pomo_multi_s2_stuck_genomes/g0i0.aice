@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Pomodoro Timer</title>
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    max-width: 500px;
+    margin: 40px auto;
+    padding: 20px;
+    background: #f5f5f5;
+  }
+  .card {
+    background: #fff;
+    padding: 24px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    margin-bottom: 16px;
+  }
+  #timer-display {
+    font-size: 64px;
+    font-weight: bold;
+    text-align: center;
+    margin: 16px 0;
+    font-family: monospace;
+  }
+  #phase-display {
+    text-align: center;
+    font-size: 20px;
+    text-transform: uppercase;
+    color: #666;
+  }
+  #cycle-count {
+    text-align: center;
+    font-size: 16px;
+    color: #888;
+    margin-top: 8px;
+  }
+  .buttons {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 16px;
+  }
+  button {
+    padding: 10px 18px;
+    border: none;
+    border-radius: 6px;
+    background: #4a90e2;
+    color: white;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  button:hover { background: #357abd; }
+  .settings label {
+    display: block;
+    margin: 8px 0;
+  }
+  input[type="number"] {
+    width: 80px;
+    padding: 6px;
+    font-size: 14px;
+  }
+  h2 { margin-top: 0; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div data-testid="phase-display" id="phase-display">work</div>
+    <div data-testid="timer-display" id="timer-display">25:00</div>
+    <div data-testid="cycle-count" id="cycle-count">Cycles: 0</div>
+    <div class="buttons">
+      <button data-testid="btn-start" id="btn-start">Start</button>
+      <button data-testid="btn-pause" id="btn-pause">Pause</button>
+      <button data-testid="btn-reset" id="btn-reset">Reset</button>
+      <button data-testid="btn-skip" id="btn-skip">Skip</button>
+    </div>
+  </div>
+  <div class="card settings">
+    <h2>Settings</h2>
+    <label>Work (min): <input data-testid="setting-work" id="setting-work" type="number" min="1" value="25"></label>
+    <label>Break (min): <input data-testid="setting-break" id="setting-break" type="number" min="1" value="5"></label>
+    <button data-testid="btn-save-settings" id="btn-save-settings">Save Settings</button>
+  </div>
+
+<script>
+(function() {
+  const STORAGE_KEY = 'pomodoro_state_v1';
+
+  // Default state
+  let state = {
+    workMin: 25,
+    breakMin: 5,
+    cycles: 0,
+    phase: 'work',
+    remaining: 25 * 60, // seconds
+  };
+
+  // Load persisted settings & cycles
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    if (typeof saved.workMin === 'number' && saved.workMin > 0) state.workMin = saved.workMin;
+    if (typeof saved.breakMin === 'number' && saved.breakMin > 0) state.breakMin = saved.breakMin;
+    if (typeof saved.cycles === 'number') state.cycles = saved.cycles;
+  } catch(e) {}
+
+  state.remaining = state.workMin * 60;
+
+  let intervalId = null;
+
+  const timerDisplay = document.getElementById('timer-display');
+  const phaseDisplay = document.getElementById('phase-display');
+  const cycleCount = document.getElementById('cycle-count');
+  const btnStart = document.getElementById('btn-start');
+  const btnPause = document.getElementById('btn-pause');
+  const btnReset = document.getElementById('btn-reset');
+  const btnSkip = document.getElementById('btn-skip');
+  const settingWork = document.getElementById('setting-work');
+  const settingBreak = document.getElementById('setting-break');
+  const btnSaveSettings = document.getElementById('btn-save-settings');
+
+  settingWork.value = state.workMin;
+  settingBreak.value = state.breakMin;
+
+  function persist() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        workMin: state.workMin,
+        breakMin: state.breakMin,
+        cycles: state.cycles,
+      }));
+    } catch(e) {}
+  }
+
+  function fmt(sec) {
+    if (sec < 0) sec = 0;
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return m + ':' + (s < 10 ? '0' + s : s);
+  }
+
+  function render() {
+    timerDisplay.textContent = fmt(state.remaining);
+    phaseDisplay.textContent = state.phase;
+    cycleCount.textContent = 'Cycles: ' + state.cycles;
+  }
+
+  function phaseDuration(phase) {
+    return (phase === 'work' ? state.workMin : state.breakMin) * 60;
+  }
+
+  function nextPhase() {
+    if (state.phase === 'work') {
+      state.phase = 'break';
+    } else {
+      state.phase = 'work';
+      state.cycles += 1;
+      persist();
+    }
+    state.remaining = phaseDuration(state.phase);
+  }
+
+  function stopInterval() {
+    if (intervalId !== null) {
+      clearInterval(intervalId);
+      intervalId = null;
+    }
+  }
+
+  function tick() {
+    state.remaining -= 1;
+    if (state.remaining <= 0) {
+      nextPhase();
+      render();
+      return;
+    }
+    render();
+  }
+
+  function start() {
+    if (intervalId !== null) return;
+    intervalId = setInterval(tick, 1000);
+  }
+
+  function pause() {
+    stopInterval();
+  }
+
+  function reset() {
+    stopInterval();
+    state.remaining = phaseDuration(state.phase);
+    render();
+  }
+
+  function skip() {
+    nextPhase();
+    render();
+  }
+
+  function saveSettings() {
+    const w = parseInt(settingWork.value, 10);
+    const b = parseInt(settingBreak.value, 10);
+    if (!isNaN(w) && w > 0) state.workMin = w;
+    if (!isNaN(b) && b > 0) state.breakMin = b;
+    persist();
+  }
+
+  btnStart.addEventListener('click', start);
+  btnPause.addEventListener('click', pause);
+  btnReset.addEventListener('click', reset);
+  btnSkip.addEventListener('click', skip);
+  btnSaveSettings.addEventListener('click', saveSettings);
+
+  render();
+})();
+</script>
+</body>
+</html>

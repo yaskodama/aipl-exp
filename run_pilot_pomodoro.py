@@ -14,9 +14,21 @@ import argparse
 import time
 from pathlib import Path
 
-from llm_agents import AgentPool, multi_vendor_pool
+from llm_agents import AgentPool, multi_vendor_pool, ClaudeAgent, OpenAIAgent, GeminiAgent
 from warm_start import wrap_with_history, wrap_with_exemplars, HistoryFedAgent, exemplar_code_fewshot, extract_history_from_runs
 from ga_runner import run
+
+
+def fast_pool() -> AgentPool:
+    """Pomodoro 用の軽量プール: thinking 無効 + 比較的小さなモデルのみ。
+    Opus の adaptive thinking が ReadTimeout を引き起こすため避ける。"""
+    return AgentPool([
+        ClaudeAgent("sonnet", model="claude-sonnet-4-6", thinking=False),
+        ClaudeAgent("haiku",  model="claude-haiku-4-5"),
+        OpenAIAgent("gpt5m",  model="gpt-5-mini"),
+        GeminiAgent("gemini", model="gemini-2.5-flash"),
+        GeminiAgent("flite",  model="gemini-2.5-flash-lite"),
+    ], policy="round_robin")
 
 ROOT = Path(__file__).parent
 RUNS_DIR = ROOT / "runs_real"
@@ -29,17 +41,13 @@ TODO_EXEMPLARS = [
 
 
 def pomo_multi_pool() -> AgentPool:
-    """multi-vendor 7 agents, no history."""
-    return multi_vendor_pool(policy="round_robin")
+    """軽量 multi-vendor 5 agents (Opus 除外), no history. Pomodoro 用。"""
+    return fast_pool()
 
 
 def pomo_warm_todo_pool() -> AgentPool:
-    """multi-vendor + Todo の history (.ga) + Todo exemplar (.aice) をハイブリッド注入。
-
-    各 agent を 2 段階でラップ:
-        agent → exemplar 注入 → history 注入
-    """
-    base = multi_vendor_pool(policy="round_robin")
+    """軽量 multi-vendor + Todo history + Todo exemplar をハイブリッド注入。"""
+    base = fast_pool()
     # 履歴 fewshot
     hist = extract_history_from_runs(TODO_HISTORY, top_k=5) if TODO_HISTORY else ""
     # exemplar (実コード)

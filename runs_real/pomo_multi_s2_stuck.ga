@@ -1,0 +1,15 @@
+# GA v1 — AIPL アプリ進化実験
+META problem="pomodoro"
+META condition="AIPL-multi-agent"
+META population=4
+META generations=3
+META seed=2
+META start_time="2026-05-21T15:22:57"
+META target_fitness=0.85
+META fitness_mode="quality"
+
+GEN 0
+EVENT llm_call id=c0001 agent=opus task=init tokens_in=1103 tokens_out=2419 latency_ms=23698 cost=0.065990
+INDIV id=g0i0 op=init fitness=0.6920 parents=[] agent=opus call=c0001 passed=12/12 loc=220 genome_ref="runs_real/pomo_multi_s2_genomes/g0i0.aice"
+EVENT llm_call id=c0002 agent=sonnet task=init tokens_in=1031 tokens_out=8678 latency_ms=358945 cost=0.133263
+INDIV id=g0i1 op=init fitness=0.6752 parents=[] agent=sonnet call=c0002 passed=12/12 loc=232 genome_ref="runs_real/pomo_multi_s2_genomes/g0i1.aice"

@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Pomodoro Timer</title>
+<style>
+  :root { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; color: #222; }
+  body { display:flex; align-items:center; justify-content:center; height:100vh; margin:0; background:#f6f7fb; }
+  .card { background:#fff; padding:24px; border-radius:8px; box-shadow:0 6px 18px rgba(20,20,50,0.06); width:360px; }
+  .header { text-align:center; margin-bottom:16px; }
+  h1 { margin:0 0 4px 0; font-size:20px; }
+  .display { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; }
+  .time { font-size:48px; font-weight:600; }
+  .meta { text-align:right; }
+  .meta div { font-size:14px; color:#555; }
+  .controls { display:flex; gap:8px; margin-bottom:12px; }
+  button { flex:1; padding:10px 12px; border-radius:6px; border:1px solid #dfe4ee; background:#ffffff; cursor:pointer; font-weight:600; }
+  button:active { transform:translateY(1px); }
+  .btn-primary { background:#2563eb; color:#fff; border-color:transparent; }
+  .btn-danger { background:#ef4444; color:#fff; border-color:transparent; }
+  .settings { border-top:1px dashed #e6e9f2; padding-top:12px; margin-top:12px; display:grid; gap:8px; }
+  .settings-row { display:flex; gap:8px; align-items:center; }
+  label { min-width:80px; font-size:14px; color:#333; }
+  input[type="number"] { width:100%; padding:8px 10px; border-radius:6px; border:1px solid #dfe4ee; }
+  .save { margin-top:8px; text-align:right; }
+  .small { font-size:13px; color:#666; }
+</style>
+</head>
+<body>
+  <div class="card" role="application" aria-label="Pomodoro Timer">
+    <div class="header">
+      <h1>Pomodoro</h1>
+      <div class="small">Stay focused — work & break cycles</div>
+    </div>
+
+    <div class="display">
+      <div class="time" data-testid="timer-display" id="timer-display">25:00</div>
+      <div class="meta">
+        <div data-testid="phase-display" id="phase-display">work</div>
+        <div>Cycles: <span data-testid="cycle-count" id="cycle-count">0</span></div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button data-testid="btn-start" id="btn-start" class="btn-primary">Start</button>
+      <button data-testid="btn-pause" id="btn-pause">Pause</button>
+      <button data-testid="btn-reset" id="btn-reset">Reset</button>
+      <button data-testid="btn-skip" id="btn-skip">Skip</button>
+    </div>
+
+    <div class="settings" aria-label="Settings">
+      <div class="settings-row">
+        <label for="setting-work">Work (min)</label>
+        <input data-testid="setting-work" id="setting-work" type="number" min="1" step="1" />
+      </div>
+      <div class="settings-row">
+        <label for="setting-break">Break (min)</label>
+        <input data-testid="setting-break" id="setting-break" type="number" min="1" step="1" />
+      </div>
+      <div class="save">
+        <button data-testid="btn-save-settings" id="btn-save-settings">Save Settings</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  // Keys for localStorage
+  const LS_SETTINGS = 'pomodoro_settings_v1';
+  const LS_CYCLES = 'pomodoro_cycles_v1';
+
+  // Default durations in minutes
+  const DEFAULT_WORK_MIN = 25;
+  const DEFAULT_BREAK_MIN = 5;
+
+  // State
+  let settings = { workMin: DEFAULT_WORK_MIN, breakMin: DEFAULT_BREAK_MIN };
+  let phase = 'work'; // 'work' or 'break'
+  let cycles = 0;
+  let remainingSec = settings.workMin * 60;
+  let timerId = null;
+  let running = false;
+
+  // Elements
+  const elDisplay = document.getElementById('timer-display');
+  const elPhase = document.getElementById('phase-display');
+  const elCycles = document.getElementById('cycle-count');
+  const elStart = document.getElementById('btn-start');
+  const elPause = document.getElementById('btn-pause');
+  const elReset = document.getElementById('btn-reset');
+  const elSkip = document.getElementById('btn-skip');
+  const elSettingWork = document.getElementById('setting-work');
+  const elSettingBreak = document.getElementById('setting-break');
+  const elSaveSettings = document.getElementById('btn-save-settings');
+
+  // Helpers
+  function loadFromStorage() {
+    try {
+      const raw = localStorage.getItem(LS_SETTINGS);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && Number.isFinite(parsed.workMin) && Number.isFinite(parsed.breakMin)) {
+          settings = { workMin: Math.max(1, Math.floor(parsed.workMin)), breakMin: Math.max(1, Math.floor(parsed.breakMin)) };
+        }
+      }
+    } catch(e){}
+    try {
+      const rawc = localStorage.getItem(LS_CYCLES);
+      if (rawc !== null) {
+        const v = parseInt(rawc, 10);
+        if (!isNaN(v) && v >= 0) cycles = v;
+      }
+    } catch(e){}
+  }
+
+  function saveSettingsToStorage() {
+    try {
+      localStorage.setItem(LS_SETTINGS, JSON.stringify(settings));
+    } catch(e){}
+  }
+
+  function saveCyclesToStorage() {
+    try {
+      localStorage.setItem(LS_CYCLES, String(cycles));
+    } catch(e){}
+  }
+
+  function formatTime(sec) {
+    sec = Math.max(0, Math.floor(sec));
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    const sStr = s < 10 ? '0' + s : String(s);
+    // minutes may be displayed without leading zeros
+    return String(m) + ':' + sStr;
+  }
+
+  function updateUI() {
+    elDisplay.textContent = formatTime(remainingSec);
+    elPhase.textContent = phase;
+    elCycles.textContent = String(cycles);
+    // populate settings inputs
+    elSettingWork.value = String(settings.workMin);
+    elSettingBreak.value = String(settings.breakMin);
+  }
+
+  function setRemainingForPhase(p) {
+    if (p === 'work') {
+      remainingSec = settings.workMin * 60;
+    } else {
+      remainingSec = settings.breakMin * 60;
+    }
+  }
+
+  function startTimer() {
+    if (running) return;
+    running = true;
+    // Use setInterval so tests controlling clock can advance it
+    timerId = setInterval(tick, 1000);
+  }
+
+  function pauseTimer() {
+    running = false;
+    if (timerId !== null) {
+      clearInterval(timerId);
+      timerId = null;
+    }
+  }
+
+  function resetTimer() {
+    pauseTimer();
+    // Reset remaining time to start of current phase
+    setRemainingForPhase(phase);
+    updateUI();
+  }
+
+  function skipPhase() {
+    pauseTimer();
+    phase = (phase === 'work') ? 'break' : 'work';
+    setRemainingForPhase(phase);
+    updateUI();
+  }
+
+  function tick() {
+    if (!running) return;
+    remainingSec = Math.max(0, remainingSec - 1);
+    updateUI();
+    if (remainingSec <= 0) {
+      // phase complete
+      if (phase === 'work') {
+        // switch to break
+        phase = 'break';
+        setRemainingForPhase(phase);
+        // continue running (do not pause)
+        updateUI();
+      } else {
+        // break complete -> back to work, increment cycle count
+        phase = 'work';
+        cycles = cycles + 1;
+        saveCyclesToStorage();
+        setRemainingForPhase(phase);
+        updateUI();
+      }
+    }
+  }
+
+  // Event listeners
+  elStart.addEventListener('click', function(){
+    startTimer();
+  });
+
+  elPause.addEventListener('click', function(){
+    pauseTimer();
+  });
+
+  elReset.addEventListener('click', function(){
+    resetTimer();
+  });
+
+  elSkip.addEventListener('click', function(){
+    skipPhase();
+  });
+
+  elSaveSettings.addEventListener('click', function(){
+    // read values from inputs
+    const w = parseInt(elSettingWork.value, 10);
+    const b = parseInt(elSettingBreak.value, 10);
+    if (!isNaN(w) && w >= 1) settings.workMin = Math.floor(w);
+    if (!isNaN(b) && b >= 1) settings.breakMin = Math.floor(b);
+    saveSettingsToStorage();
+    // Do not change current remaining until reset; update inputs/display
+    updateUI();
+  });
+
+  // input change constraints (ensure minimum 1)
+  elSettingWork.addEventListener('input', function(){
+    let v = parseInt(elSettingWork.value, 10);
+    if (isNaN(v) || v < 1) v = 1;
+    elSettingWork.value = String(v);
+  });
+  elSettingBreak.addEventListener('input', function(){
+    let v = parseInt(elSettingBreak.value, 10);
+    if (isNaN(v) || v < 1) v = 1;
+    elSettingBreak.value = String(v);
+  });
+
+  // Initialization
+  function init() {
+    loadFromStorage();
+    // initial phase is work and remaining should reflect saved or default value
+    phase = 'work';
+    setRemainingForPhase(phase);
+    updateUI();
+    // Ensure cycles display shows stored cycles
+    elCycles.textContent = String(cycles);
+  }
+
+  // Expose minimal API for potential debugging (not required)
+  window.__pomodoro = {
+    start: startTimer,
+    pause: pauseTimer,
+    reset: resetTimer,
+    skip: skipPhase
+  };
+
+  init();
+})();
+</script>
+</body>
+</html>
