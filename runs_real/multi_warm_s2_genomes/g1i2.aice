@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Todo App</title>
+<style>
+  /* from parent A: Base styling */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; background: #f5f5f5; padding: 40px 20px; }
+  .container { max-width: 600px; margin: 0 auto; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); padding: 24px; }
+  h1 { text-align: center; margin-bottom: 20px; color: #333; }
+  .input-row { display: flex; gap: 8px; margin-bottom: 16px; }
+  #new-todo-input { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 16px; }
+  #add-btn { padding: 10px 18px; background: #4CAF50; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
+  #add-btn:hover { background: #45a049; }
+  .filters { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .filters button { padding: 6px 14px; border: 1px solid #ccc; background: #fff; border-radius: 4px; cursor: pointer; font-size: 14px; }
+  .filters button.active { background: #4CAF50; color: #fff; border-color: #4CAF50; }
+  #todo-list { list-style: none; margin-bottom: 16px; }
+  [data-testid="todo-item"] { display: flex; align-items: center; gap: 10px; padding: 10px 8px; border-bottom: 1px solid #eee; }
+  [data-testid="todo-item"]:last-child { border-bottom: none; }
+  [data-testid="todo-toggle"] { width: 18px; height: 18px; cursor: pointer; flex-shrink: 0; }
+  [data-testid="todo-text"] { flex: 1; font-size: 16px; color: #333; word-break: break-all; outline: none; }
+  /* from parent B: Use class on LI for completion state */
+  [data-testid="todo-item"].completed [data-testid="todo-text"] { text-decoration: line-through; color: #999; }
+  /* from parent B: Style for editable content */
+  [data-testid="todo-text"][contenteditable="true"] { background: #fffbe6; outline: 1px dashed #f5c000; }
+  [data-testid="todo-delete"] { padding: 4px 10px; background: #e53935; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; flex-shrink: 0; }
+  [data-testid="todo-delete"]:hover { background: #b71c1c; }
+  #clear-completed { padding: 8px 16px; background: #ff7043; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
+  #clear-completed:hover { background: #e64a19; }
+  .bottom-row { display: flex; justify-content: flex-end; }
+</style>
+</head>
+<body>
+<!-- from parent A: HTML Structure -->
+<div class="container">
+  <h1>Todo</h1>
+  <div class="input-row">
+    <input type="text" data-testid="new-todo-input" id="new-todo-input" placeholder="新しいタスクを入力..." />
+    <button data-testid="add-btn" id="add-btn">追加</button>
+  </div>
+  <div class="filters">
+    <button data-testid="filter-all" id="filter-all" class="active">全て</button>
+    <button data-testid="filter-active" id="filter-active">未完了</button>
+    <button data-testid="filter-completed" id="filter-completed">完了</button>
+  </div>
+  <ul data-testid="todo-list" id="todo-list"></ul>
+  <div class="bottom-row">
+    <button data-testid="clear-completed" id="clear-completed">完了を一括削除</button>
+  </div>
+</div>
+<script>
+// from parent B: IIFE for scoping and modern syntax (const/let)
+(function() {
+  const STORAGE_KEY = 'todos-v1';
+  let todos = [];
+  let filter = 'all';
+
+  // from parent A: Get DOM elements once
+  const inputEl = document.getElementById('new-todo-input');
+  const addBtn = document.getElementById('add-btn');
+  const listEl = document.getElementById('todo-list');
+
+  // from parent B: Data persistence logic (load/save)
+  function load() {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) todos = JSON.parse(saved);
+    } catch (e) {
+      todos = [];
+    }
+  }
+
+  function save() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(todos));
+  }
+
+  // from parent B: Centralized sync function to save and re-render
+  function sync() {
+    save();
+    render();
+  }
+
+  // from parent B: Core data manipulation functions (using modern syntax)
+  function addTodo(text) {
+    const trimmedText = text.trim();
+    if (!trimmedText) return;
+    // from parent A: Robust ID generation
+    todos.push({ id: Date.now() + Math.random(), text: trimmedText, completed: false });
+    sync();
+  }
+
+  function deleteTodo(id) {
+    todos = todos.filter(t => t.id !== id);
+    sync();
+  }
+
+  function toggleTodo(id) {
+    const todo = todos.find(t => t.id === id);
+    if (todo) {
+      todo.completed = !todo.completed;
+      sync();
+    }
+  }
+
+  function updateTodoText(id, newText) {
+    const todo = todos.find(t => t.id === id);
+    if (todo) {
+      todo.text = newText;
+      save(); // Just save, no need to re-render everything
+    }
+  }
+
+  function clearCompleted() {
+    todos = todos.filter(t => !t.completed);
+    sync();
+  }
+
+  // from parent B: Filtering logic separated into functions
+  function setFilter(newFilter) {
+    filter = newFilter;
+    render();
+  }
+
+  function getVisibleTodos() {
+    if (filter === 'active') return todos.filter(t => !t.completed);
+    if (filter === 'completed') return todos.filter(t => t.completed);
+    return todos;
+  }
+
+  // from parent A: Render logic structure, combined with parent B's ideas
+  function render() {
+    listEl.innerHTML = '';
+    const visibleTodos = getVisibleTodos(); // from parent B
+
+    visibleTodos.forEach(function(todo) {
+      const li = document.createElement('li');
+      li.setAttribute('data-testid', 'todo-item');
+      li.dataset.id = todo.id;
+      // from parent B: Use class on LI for styling
+      if (todo.completed) {
+        li.classList.add('completed');
+      }
+
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.setAttribute('data-testid', 'todo-toggle');
+      checkbox.checked = todo.completed;
+      checkbox.addEventListener('change', () => toggleTodo(todo.id));
+
+      const span = document.createElement('span');
+      span.setAttribute('data-testid', 'todo-text');
+      span.textContent = todo.text;
+
+      // from parent A: Detailed logic for inline editing
+      span.addEventListener('dblclick', function() {
+        span.contentEditable = 'true';
+        span.focus();
+        const range = document.createRange();
+        range.selectNodeContents(span);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+      });
+
+      span.addEventListener('blur', function() {
+        span.contentEditable = 'false';
+        const newText = span.textContent.trim();
+        if (!newText) {
+          deleteTodo(todo.id);
+        } else if (newText !== todo.text) {
+          updateTodoText(todo.id, newText);
+        }
+      });
+
+      span.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          span.blur();
+        }
+        if (e.key === 'Escape') {
+          span.textContent = todo.text; // Revert
+          span.blur();
+        }
+      });
+
+      const deleteBtn = document.createElement('button');
+      deleteBtn.setAttribute('data-testid', 'todo-delete');
+      deleteBtn.textContent = '削除';
+      deleteBtn.addEventListener('click', () => deleteTodo(todo.id));
+
+      li.appendChild(checkbox);
+      li.appendChild(span);
+      li.appendChild(deleteBtn);
+      listEl.appendChild(li);
+    });
+
+    // from parent B: Update filter button active state
+    document.querySelectorAll('.filters button').forEach(function(b) {
+      b.classList.remove('active');
+    });
+    document.getElementById('filter-' + filter).classList.add('active');
+  }
+
+  // from parent B: Event listeners setup for better organization
+  addBtn.addEventListener('click', function() {
+    addTodo(inputEl.value);
+    inputEl.value = '';
+    inputEl.focus(); // from parent B: UX improvement
+  });
+
+  inputEl.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+      addTodo(this.value);
+      this.value = '';
+    }
+  });
+
+  document.getElementById('filter-all').addEventListener('click', () => setFilter('all'));
+  document.getElementById('filter-active').addEventListener('click', () => setFilter('active'));
+  document.getElementById('filter-completed').addEventListener('click', () => setFilter('completed'));
+  document.getElementById('clear-completed').addEventListener('click', clearCompleted);
+
+  // Initial load and render
+  load();
+  render();
+})();
+</script>
+</body>
+</html>

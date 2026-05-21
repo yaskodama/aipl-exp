@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>単一 HTML Todo アプリ</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f7f7f7;
+    --fg: #222;
+    --muted: #888;
+    --accent: #2d7ef7;
+    --danger: #d9534f;
+    --border: #ddd;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, Noto Sans JP, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+    display: grid;
+    place-items: start center;
+    min-height: 100vh;
+    padding: 24px;
+  }
+  .app {
+    width: min(720px, 100%);
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+    overflow: clip;
+  }
+  header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 {
+    font-size: 1.25rem;
+    margin: 0;
+    margin-right: auto;
+    letter-spacing: 0.02em;
+  }
+  .input-row {
+    display: flex;
+    gap: 8px;
+    width: 100%;
+  }
+  input[type="text"][data-testid="new-todo-input"] {
+    flex: 1 1 auto;
+    padding: 10px 12px;
+    font-size: 16px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    outline: none;
+  }
+  input[type="text"][data-testid="new-todo-input"]:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 25%, transparent);
+  }
+  button {
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: #fff;
+    color: var(--fg);
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 14px;
+  }
+  button:hover { background: #f1f5ff; }
+  button:active { transform: translateY(1px); }
+  .filters {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    padding: 10px 20px;
+    border-bottom: 1px solid var(--border);
+    background: #fafafa;
+  }
+  .filters button.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: #eef5ff;
+    font-weight: 600;
+  }
+  .filters .spacer { flex: 1 1 auto; }
+  main {
+    padding: 6px 10px 12px;
+  }
+  ul[data-testid="todo-list"] {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  li[data-testid="todo-item"] {
+    display: grid;
+    grid-template-columns: 28px 1fr auto;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 10px 10px 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  li[data-testid="todo-item"]:last-child { border-bottom: none; }
+  input[type="checkbox"][data-testid="todo-toggle"] {
+    width: 18px;
+    height: 18px;
+    margin: 0 6px;
+    cursor: pointer;
+    accent-color: var(--accent);
+  }
+  [data-testid="todo-text"] {
+    min-width: 40px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    outline: none;
+    word-break: break-word;
+    user-select: text;
+  }
+  li.completed [data-testid="todo-text"] {
+    text-decoration: line-through;
+    color: var(--muted);
+  }
+  [data-testid="todo-text"].editing {
+    background: #fff8d6;
+    box-shadow: inset 0 0 0 2px #ffe38a;
+  }
+  button[data-testid="todo-delete"] {
+    color: #fff;
+    background: var(--danger);
+    border-color: transparent;
+  }
+  button[data-testid="todo-delete"]:hover {
+    background: color-mix(in oklab, var(--danger) 85%, #fff);
+  }
+  footer {
+    padding: 10px 20px 16px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  @media (prefers-color-scheme: dark) {
+    .app { background: #181a1f; border-color: #2a2f3a; }
+    header, .filters { border-color: #2a2f3a; background: #1e222a; }
+    body { background: #0f1216; color: #eaeef3; }
+    input[type="text"][data-testid="new-todo-input"],
+    button { background: #0f1216; color: #eaeef3; border-color: #2a2f3a; }
+    button:hover { background: #151922; }
+    [data-testid="todo-text"].editing {
+      background: #3a3000;
+      box-shadow: inset 0 0 0 2px #6b5900;
+    }
+  }
+</style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>Todo</h1>
+      <div class="input-row">
+        <input type="text" data-testid="new-todo-input" placeholder="新しいタスクを入力して Enter または『追加』">
+        <button data-testid="add-btn" aria-label="追加">追加</button>
+      </div>
+    </header>
+
+    <div class="filters">
+      <button data-testid="filter-all" aria-pressed="true">全て</button>
+      <button data-testid="filter-active" aria-pressed="false">未完了</button>
+      <button data-testid="filter-completed" aria-pressed="false">完了</button>
+      <span class="spacer"></span>
+      <button data-testid="clear-completed" title="完了した項目を一括削除">完了を一括削除</button>
+    </div>
+
+    <main>
+      <ul data-testid="todo-list" aria-live="polite"></ul>
+    </main>
+
+    <footer>
+      ダブルクリックで編集。Enter で保存 / Esc で取消 / フォーカス外しで保存。完了は取り消し線で表示されます。
+    </footer>
+  </div>
+
+<script>
+(function () {
+  'use strict';
+
+  const STORAGE_KEY = 'single_html_todos_v1';
+
+  /** @type {{id:string,text:string,completed:boolean}[]} */
+  let todos = [];
+  /** all | active | completed */
+  let currentFilter = 'all';
+
+  // Elements
+  const inputEl = document.querySelector('[data-testid="new-todo-input"]');
+  const addBtn = document.querySelector('[data-testid="add-btn"]');
+  const listEl = document.querySelector('[data-testid="todo-list"]');
+  const filterAllBtn = document.querySelector('[data-testid="filter-all"]');
+  const filterActiveBtn = document.querySelector('[data-testid="filter-active"]');
+  const filterCompletedBtn = document.querySelector('[data-testid="filter-completed"]');
+  const clearCompletedBtn = document.querySelector('[data-testid="clear-completed"]');
+
+  function load() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const data = JSON.parse(raw);
+        if (Array.isArray(data)) {
+          todos = data;
+        } else if (data && Array.isArray(data.todos)) {
+          todos = data.todos;
+          if (data.filter === 'all' || data.filter === 'active' || data.filter === 'completed') {
+            currentFilter = data.filter;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load todos:', e);
+      todos = [];
+    }
+  }
+
+  function save() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(todos));
+    } catch (e) {
+      console.warn('Failed to save todos:', e);
+    }
+  }
+
+  function createId() {
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  }
+
+  function addTodoFromInput() {
+    const text = (inputEl.value || '').trim();
+    if (!text) return;
+    todos.push({ id: createId(), text, completed: false });
+    inputEl.value = '';
+    save();
+    render();
+  }
+
+  function removeTodo(id) {
+    todos = todos.filter(t => t.id !== id);
+    save();
+    render();
+  }
+
+  function setFilter(filter) {
+    currentFilter = filter;
+    render();
+  }
+
+  function render() {
+    // Update filter button visual state
+    const map = {
+      all: filterAllBtn,
+      active: filterActiveBtn,
+      completed: filterCompletedBtn
+    };
+    [filterAllBtn, filterActiveBtn, filterCompletedBtn].forEach(btn => {
+      btn.classList.remove('active');
+      btn.setAttribute('aria-pressed', 'false');
+    });
+    if (map[currentFilter]) {
+      map[currentFilter].classList.add('active');
+      map[currentFilter].setAttribute('aria-pressed', 'true');
+    }
+
+    // Clear list
+    listEl.innerHTML = '';
+
+    const frag = document.createDocumentFragment();
+
+    todos.forEach(todo => {
+      const li = document.createElement('li');
+      li.setAttribute('data-testid', 'todo-item');
+      li.dataset.id = todo.id;
+      if (todo.completed) li.classList.add('completed');
+
+      // Checkbox
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.setAttribute('data-testid', 'todo-toggle');
+      cb.checked = !!todo.completed;
+      cb.addEventListener('change', () => {
+        todo.completed = cb.checked;
+        save();
+        render();
+      });
+
+      // Text
+      const textEl = document.createElement('span');
+      textEl.setAttribute('data-testid', 'todo-text');
+      textEl.textContent = todo.text;
+
+      // Editing handlers
+      textEl.addEventListener('dblclick', () => {
+        // Enter editing mode via contenteditable
+        textEl.contentEditable = 'true';
+        textEl.classList.add('editing');
+        placeCaretAtEnd(textEl);
+        textEl.focus();
+      });
+
+      textEl.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          finishEdit(textEl, todo, true);
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          finishEdit(textEl, todo, false);
+        }
+      });
+
+      textEl.addEventListener('blur', () => finishEdit(textEl, todo, true));
+
+      // Delete button
+      const del = document.createElement('button');
+      del.setAttribute('data-testid', 'todo-delete');
+      del.textContent = '削除';
+      del.addEventListener('click', () => removeTodo(todo.id));
+
+      // Assemble
+      li.appendChild(cb);
+      li.appendChild(textEl);
+      li.appendChild(del);
+
+      // Apply filter visibility
+      let visible = true;
+      if (currentFilter === 'active' && todo.completed) visible = false;
+      if (currentFilter === 'completed' && !todo.completed) visible = false;
+      if (!visible) li.style.display = 'none';
+
+      frag.appendChild(li);
+    });
+
+    listEl.appendChild(frag);
+  }
+
+  function finishEdit(textEl, todo, commit) {
+    if (!textEl.isContentEditable) return;
+    const newText = (textEl.textContent || '').trim();
+    textEl.contentEditable = 'false';
+    textEl.classList.remove('editing');
+
+    if (commit) {
+      if (newText) {
+        if (newText !== todo.text) {
+          todo.text = newText;
+          save();
+        }
+        render();
+      } else {
+        // Empty -> delete
+        removeTodo(todo.id);
+      }
+    } else {
+      // Cancel: restore original text
+      textEl.textContent = todo.text;
+    }
+  }
+
+  function placeCaretAtEnd(el) {
+    try {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      range.collapse(false);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    } catch {}
+  }
+
+  // Event bindings
+  addBtn.addEventListener('click', addTodoFromInput);
+  inputEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') addTodoFromInput();
+  });
+
+  filterAllBtn.addEventListener('click', () => setFilter('all'));
+  filterActiveBtn.addEventListener('click', () => setFilter('active'));
+  filterCompletedBtn.addEventListener('click', () => setFilter('completed'));
+
+  clearCompletedBtn.addEventListener('click', () => {
+    const anyCompleted = todos.some(t => t.completed);
+    if (!anyCompleted) return;
+    todos = todos.filter(t => !t.completed);
+    save();
+    render();
+  });
+
+  // Init
+  load();
+  render();
+})();
+</script>
+</body>
+</html>

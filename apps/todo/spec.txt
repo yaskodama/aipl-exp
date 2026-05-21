@@ -1,0 +1,37 @@
+仕様: 単一 HTML Todo アプリ
+=========================
+
+実装要件:
+- 単一 HTML ファイル（CSS, JS は <style>, <script> でインライン）
+- フレームワーク・外部ライブラリ不可。素の HTML/JS のみ
+- ファイルを開いてすぐ動作すること
+
+UI 要素（テストで使うので必ず data-testid を付与してください）:
+- 入力欄:                    data-testid="new-todo-input"   (input type="text")
+- 追加ボタン:                data-testid="add-btn"
+- リスト（ul か ol）:        data-testid="todo-list"
+- リスト項目（個別 li）:     data-testid="todo-item"
+- 項目のテキスト要素:        data-testid="todo-text"        (li の子要素)
+- 完了チェックボックス:      data-testid="todo-toggle"      (li の子要素、checkbox)
+- 削除ボタン:                data-testid="todo-delete"      (li の子要素)
+- フィルタ: 全て / 未完了 / 完了:
+                              data-testid="filter-all"
+                              data-testid="filter-active"
+                              data-testid="filter-completed"
+
+機能要件:
+1. 起動時はリストが空
+2. 入力欄に文字を入れて Enter または追加ボタンで項目追加
+3. 追加された項目はテキストが表示される
+4. 削除ボタンで項目が消える
+5. チェックボックスで完了状態をトグル
+6. 完了項目には CSS で text-decoration: line-through を付ける
+7. 「未完了」フィルタで完了項目が非表示になる
+8. 「完了」フィルタで未完了項目が非表示になる
+9. 「全て」フィルタですべて表示される
+10. ダブルクリックで項目を編集可能（最低限「li が contenteditable になる」など何らかの方法で）
+11. localStorage に保存され、リロード後も保持される
+12. 完了項目を一括削除するボタン: data-testid="clear-completed"
+
+スタイル:
+- 見た目は問わない

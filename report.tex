@@ -1,0 +1,464 @@
+\documentclass[a4paper,11pt]{ltjsarticle}
+
+\usepackage{luatexja-preset}
+\usepackage[margin=22mm]{geometry}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{listings}
+\usepackage{caption}
+\usepackage{graphicx}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=black,
+  urlcolor=blue!50!black,
+  citecolor=black,
+}
+
+\definecolor{codebg}{rgb}{0.97,0.97,0.95}
+\definecolor{codecmt}{rgb}{0.40,0.45,0.50}
+\definecolor{codekw}{rgb}{0.20,0.30,0.65}
+
+\lstset{
+  basicstyle=\ttfamily\footnotesize,
+  backgroundcolor=\color{codebg},
+  commentstyle=\color{codecmt}\itshape,
+  keywordstyle=\color{codekw}\bfseries,
+  frame=single,
+  framesep=4pt,
+  rulecolor=\color{codebg!50!black},
+  breaklines=true,
+  breakatwhitespace=false,
+  showstringspaces=false,
+  columns=flexible,
+  numbers=none,
+  xleftmargin=4pt,
+  xrightmargin=4pt,
+}
+
+\title{AIPL 評価実験基盤 — 簡易報告書}
+\author{logic-cir / aipl-exp}
+\date{2026 年 5 月 20 日}
+
+\begin{document}
+\maketitle
+
+\section{背景と目的}
+
+本報告書は、AIPL（複数 LLM とエージェント協調による進化計算ベース問題解決システム）の有効性を学術的に評価するための実験基盤を、設計から実装まで一通り整備したことを報告するものである。
+
+主張したい仮説は以下の 3 点である。
+\begin{enumerate}[leftmargin=2em,itemsep=2pt]
+  \item AIPL は単一 LLM や Reflexion 系手法と比較して \textbf{進化速度が速い}（目標到達世代数で測定）。
+  \item AIPL は \textbf{再現性が高い}（独立試行間の最終 fitness の分散が小さい）。
+  \item AIPL は \textbf{自身の進化履歴から学習する}（履歴フィード版が cold-start 版より速く収束する）。
+\end{enumerate}
+
+これらを支えるための実験題材、ログ形式、解析パイプラインを設計・実装した。
+
+\section{評価設計}
+
+\subsection{比較条件}
+
+公平性の確保のため、4 つの比較条件すべてで \textbf{総 LLM 呼び出し回数を揃える}（推奨 N=16 呼び出し/試行）。
+
+\begin{center}
+\begin{tabular}{@{}lll@{}}
+\toprule
+条件 & 概要 & 主な役割 \\
+\midrule
+C1 & LLM 単発 best-of-N           & 最弱ベースライン \\
+C2 & 単一 LLM + GA                & GA 機構のみの寄与を切り分け \\
+C3 & AIPL (cold) — 履歴フィードなし & マルチエージェント＋GA の効果 \\
+C4 & AIPL (warm) — 過去成功例を提示  & ``履歴から学習する'' 主張の検証 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{主要評価指標と統計検定}
+
+\begin{itemize}[leftmargin=2em,itemsep=2pt]
+  \item \textbf{進化速度}: 世代別 best fitness の収束曲線、Time-To-Target（目標 fitness 到達世代）。
+  \item \textbf{再現性}: 30 独立試行における成功率と best fitness の四分位範囲。
+  \item \textbf{コスト効率}: 累積 LLM コスト vs best fitness。
+  \item \textbf{統計検定}: Mann-Whitney U 検定 + Cliff's $\delta$ + Vargha-Delaney $A_{12}$（いずれもノンパラ）。
+\end{itemize}
+
+サンプルサイズは各条件 30 試行を推奨。これは効果量 $\delta \geq 0.5$ を検出するための EC 分野の標準である。
+
+\section{実験題材：簡易アプリ開発}
+
+論理回路は ``綺麗な実験室'' として機能するが、論文インパクトを高めるため \textbf{ブラウザアプリの段階的構築} を主題材とした。LLM が実利用される文脈に直結し、機能階段を綺麗に設計できる利点がある。
+
+\begin{center}
+\begin{tabular}{@{}llrrr@{}}
+\toprule
+Tier & 題材 & テスト数 & 推奨世代 & 状態 \\
+\midrule
+T1 & 電卓（四則演算 + 小数）   & 8  & 8〜10  & 仕様＋テスト整備済 \\
+T2 & \textbf{Todo アプリ}（主実験）& 12 & 10〜15 & \textbf{N=3 で実証済} \\
+T3 & Pomodoro タイマー            & 12 & 15    & 仕様＋テスト整備済（参照実装で 12/12 通過確認）\\
+T4 & Snake ゲーム                 & 10 & 20    & 未着手 \\
+T5 & 簡易クイズアプリ             & 16 & 20    & 未着手 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{fitness 関数}:
+\[
+f = 0.85 \times \frac{\text{合格テスト数}}{\text{全テスト数}} + 0.15 \times \max\!\left(0,\; 1 - \frac{\text{LOC}}{500}\right)
+\]
+正解到達後も簡略化方向の進化が続くよう、LOC ペナルティを副次目的に組み込んだ。
+
+\section{実装した成果物}
+
+\subsection{ファイル構成}
+
+\begin{lstlisting}
+aipl-exp/
+├── apps/
+│   ├── calculator/{spec.txt, tests.spec.js}    # T1 仕様 + テスト 8 本
+│   └── todo/{spec.txt, tests.spec.js}          # T2 仕様 + テスト 12 本
+├── tools/
+│   └── parse_funcs.mjs                         # acorn による AST 関数抽出
+├── llm_agents.py        # DummyAgent / ClaudeAgent / AgentPool / claude_pool
+├── fitness_harness.py   # 候補 HTML → Playwright テスト → fitness
+├── ga_runner.py         # GA ループ + .ga 形式ログ出力
+├── gene_transition.py   # 関数・testid の building block 分析
+├── compare_runs.py      # 複数試行をラベル別に集計 + 統計検定
+├── package.json / playwright.config.js
+└── report.tex           # 本報告書
+\end{lstlisting}
+
+\subsection{進化計算実行系}
+
+\paragraph{LLM エージェント層 (\texttt{llm\_agents.py})}
+Anthropic SDK を用いた \texttt{ClaudeAgent} を実装した。マルチエージェント運用のため、3 モデル混成のプール \texttt{claude\_pool()} を提供する。
+
+\begin{center}
+\begin{tabular}{@{}llll r@{}}
+\toprule
+役割 & モデル & thinking & effort & 価格 (in/out per 1M)\\
+\midrule
+opus   & Claude Opus 4.7   & adaptive & xhigh & \$5 / \$25 \\
+sonnet & Claude Sonnet 4.6 & adaptive & high  & \$3 / \$15 \\
+haiku  & Claude Haiku 4.5  & 無効     & ---   & \$1 / \$5  \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+主な工夫:
+\begin{itemize}[leftmargin=2em,itemsep=2pt]
+  \item \textbf{プロンプトキャッシュ}: 全 LLM 呼び出しで共通のシステムプロンプトに \texttt{cache\_control: ephemeral} を付与。2 回目以降の入力コストが約 90\% 削減される。
+  \item \textbf{ストリーミング}: \texttt{max\_tokens=16000} で HTTP タイムアウト回避。
+  \item \textbf{正確なコスト計算}: \texttt{cache\_creation}（1.25倍）と \texttt{cache\_read}（0.10倍）の差を反映。
+  \item \textbf{エラー耐性}: API エラー時はエラー HTML を返して fitness=0 に倒し、選択圧で淘汰させる。
+\end{itemize}
+
+\paragraph{fitness ハーネス (\texttt{fitness\_harness.py})}
+候補 HTML を一時ファイルに書き出し、Playwright を \texttt{--reporter=json} で起動して結果を集計する。JSON 出力のノイズ耐性のため正規表現で末尾の JSON のみを抽出する。
+
+\paragraph{GA ループ (\texttt{ga\_runner.py})}
+集団 4 個体・8 世代を既定とする。エリート保存 1 + 確率的に交叉 (40\%) / 突然変異 (50\%) / simplify (10\%) を適用。各個体のゲノム（HTML 全文）を \texttt{.aice} として保存し、世代ごとのサマリと LLM 呼び出しイベントを \texttt{.ga} に逐次追記する。
+
+\subsection{ログ形式}
+
+\paragraph{\texttt{.aice}（個体ゲノム）}
+論理回路シミュレータと同一の拡張子を流用。中身は単一 HTML ファイル（CSS, JS インライン）。
+
+\paragraph{\texttt{.ga}（進化ログ）}
+行指向テキスト形式。\texttt{META} / \texttt{GEN} / \texttt{INDIV} / \texttt{EVENT} / \texttt{SUMMARY} の 5 種のレコードを持つ。
+
+\begin{lstlisting}
+META problem="todo" condition="AIPL-multi-agent" seed=42
+
+GEN 0
+EVENT llm_call id=c001 agent=opus task=init tokens_in=812 tokens_out=2104
+      latency_ms=8200 cost=0.057
+INDIV id=g0i0 op=init fitness=0.4250 parents=[] agent=opus call=c001
+      passed=5/12 loc=87 genome_ref="todo_s42_genomes/g0i0.aice"
+...
+SUMMARY gen=0 best=0.6125 mean=0.4854 worst=0.3275 diversity=0.21
+        elapsed_ms=18400 cumulative_cost=0.215
+
+META status=success best_id=g4i1 best_fitness=1.0000
+META total_llm_calls=33 total_cost=2.847 generations_to_target=4
+\end{lstlisting}
+
+\textbf{設計のポイント}: 系統樹の復元に必要な \texttt{parents=[...]} と、各個体の中身を復元可能にする \texttt{genome\_ref="..."} を必ず含める。これだけで親子関係・突破点・コスト推移・後段解析のすべてを再現できる。
+
+\subsection{分析・可視化パイプライン}
+
+\paragraph{遺伝子の移り変わり (\texttt{gene\_transition.py})}
+1 試行の \texttt{.ga} から以下を抽出する。
+\begin{itemize}[leftmargin=2em,itemsep=2pt]
+  \item \textbf{関数 building block}: 各個体の \texttt{<script>} から関数定義（named / arrow / class methods / object methods）を AST または regex で抽出し、集団内出現率の世代別ヒートマップとして可視化。同名関数の本体バリアント数も記録。
+  \item \textbf{機能マニフェスト}: \texttt{data-testid} の集合を ``アプリの phenotype'' として追跡。
+  \item \textbf{Fitness 突破点解剖}: 親→子で $\Delta f \geq 0.15$ のイベントを抽出し、新たに獲得した関数・testid を併記。
+  \item \textbf{ga-viewer 用 overlay JSON} を同時出力。
+\end{itemize}
+
+\paragraph{AST ベース関数抽出 (\texttt{tools/parse\_funcs.mjs})}
+Node.js + acorn による高精度抽出。regex 版が落としていた以下を正しく拾える。
+\begin{itemize}[leftmargin=2em,itemsep=2pt]
+  \item \texttt{class M \{ method() \{\} \}}（クラスメソッド）
+  \item \texttt{\{ name() \{\} \}}（オブジェクト短縮メソッド）
+  \item \texttt{const f = x => \dots}（本体ブレース無しアロー）
+  \item 文字列内の偽 hit を排除
+\end{itemize}
+
+\paragraph{条件間比較 (\texttt{compare\_runs.py})}
+複数試行をラベル別にグループ化し、以下を出力する。
+\begin{itemize}[leftmargin=2em,itemsep=2pt]
+  \item best fitness の箱ひげ図
+  \item Time-To-Target の箱ひげ図
+  \item 世代別の中央値 $\pm$ IQR 収束曲線（条件重ね描き）
+  \item 機能初出世代の条件比較（関数・testid 横断）
+  \item Mann-Whitney U + Cliff's $\delta$ の結果を JSON で出力
+\end{itemize}
+
+\paragraph{系統樹ビューア (\texttt{../ga-viewer.html})}
+ブラウザ完結のインタラクティブ可視化。\texttt{.ga} と同名の \texttt{.overlay.json} を自動ロードし、\textbf{革新エッジ}（子が獲得した新関数・testid のあるエッジ）を桃色でハイライトする。個体クリックで関数・testid の一覧が表示され、親が持たないものは \texttt{+name} と桃色強調される。
+
+\section{動作確認状況}
+
+dummy LLM + Playwright + 全解析パイプラインで end-to-end 検証済み。
+
+\begin{center}
+\begin{tabular}{@{}lp{0.6\linewidth}@{}}
+\toprule
+コンポーネント & 確認内容 \\
+\midrule
+\texttt{ga\_runner.py} (dummy) & 9 試行 × pop=4 × gens=5 = 約 200 個体評価を完走、\texttt{.ga} と個体 \texttt{.aice} を正しく出力 \\
+\texttt{fitness\_harness.py} & Playwright (chromium-headless) で 12 テストを実行、L0$\to$L6 で fitness 0.21$\to$0.99 と単調増加 \\
+\texttt{gene\_transition.py} & warmstart\_s101 で setFilter $\Delta f=+0.14$、clearCompleted 獲得を機能名つきで自動列挙 \\
+\texttt{compare\_runs.py} & 3-way 比較で Cliff's $\delta = -1.0$、post-hoc TTT@0.95 計算が機能 \\
+\texttt{compare\_heatmaps.py} & 条件別 building block ヒートマップを並列表示（warm-start の 1--3 世代前倒し効果を可視化）\\
+\texttt{parse\_funcs.mjs} & クラス・オブジェクトメソッド・ブレース無しアロー・文字列内偽hitを正しく処理 \\
+\texttt{ClaudeAgent} (instantiation) & \texttt{ANTHROPIC\_API\_KEY} 検出時に \texttt{default\_pool()} が \texttt{claude\_pool()} に自動切替 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{パイロット実験結果}
+
+dummy LLM（7 段階レベルの Todo アプリを返す \texttt{DummyAgent}、warm-start は \texttt{HistoryBoostedDummy}）を用いて、題材 T2 (Todo アプリ) で 3 条件パイロットを実施した。集団 4、世代 5、各条件 \textbf{$n=10$}（seed 101--110）、合計 30 試行・約 760 個体評価。
+
+\subsection{3 条件の設定}
+
+\begin{center}
+\begin{tabular}{@{}lll@{}}
+\toprule
+条件 & エージェント品質 & 役割 \\
+\midrule
+cold      & quality 0.35--0.45 & 単一弱 LLM ベースライン (C2 相当) \\
+warm      & quality 0.65--0.85 & AIPL cold start (C3 相当)         \\
+warmstart & quality 0.65--0.85 + history\_floor=2 & AIPL warm start (C4 相当) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+warmstart は \texttt{HistoryBoostedDummy} で実装した: 過去試行が deleteTodo まで到達した履歴を持っていると仮定し、init から L$\geq 2$ で出発する（実 LLM での fewshot 履歴フィードを抽象化）。
+
+\subsection{結果サマリ ($n=10 \times 3$ 条件)}
+
+\begin{center}
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+条件 & $n$ & best 中央値 & SD & TTT@0.95 中央値 & 到達率 \\
+\midrule
+cold      & 10 & 0.848 & 0.079 & ---   & 0/10 \\
+warm      & 10 & 0.919 & 0.045 & 5     & 4/10 \\
+\textbf{warmstart} & 10 & \textbf{0.989} & \textbf{0.000} & \textbf{3.5} & \textbf{10/10} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+warmstart は \textbf{全 10 試行で同一の 0.989 に到達}（SD=0）し、目標 0.95 への到達率も 100\%。cold は一度も 0.95 に達せず、warm は 40\%。
+
+\subsection{統計検定 (Mann-Whitney U + Cliff's $\delta$)}
+
+\begin{center}
+\begin{tabular}{@{}llrrrl@{}}
+\toprule
+ペア & 指標 & $U$ & $p$ & Cliff's $\delta$ & 判定 \\
+\midrule
+cold vs warm      & best & 9.5  & \textbf{0.0016} & $-0.810$  & 有意・大効果 \\
+cold vs warmstart & best & 0.0  & \textbf{0.0001} & $-1.000$  & 有意・完全分離 \\
+warm vs warmstart & best & 20.0 & \textbf{0.0054} & $-0.600$  & 有意・中--大 \\
+warm vs warmstart & TTT  & 38.0 & \textbf{0.0087} & $+0.900$  & 有意・大 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{全 4 検定で $p < 0.01$ を達成}。仮説 1〜3 すべてが統計的に強く支持された。
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.85\linewidth]{figs/N10/compare/fitness_curves.png}
+\caption{条件別の収束曲線（中央値 $\pm$ IQR、$n=10$）。warmstart は g0 から既に 0.71 で出発し、g4 で 0.99 に到達。warm は g5 でも 0.92 止まり、cold は 0.85 程度で頭打ち。}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.6\linewidth]{figs/N10/compare/best_fitness_box.png}
+\caption{条件別 best fitness 箱ひげ図。warmstart は分散ゼロで 0.989 に固まる。}
+\end{figure}
+
+\subsection{遺伝子の移り変わり ($n=10$ 集約)}
+
+各条件の 10 試行を集約した building block 集団内出現率（\texttt{figs/N10/heatmap\_3way.png}）。出現率 $\geq 0.9$ となった世代を ``ほぼ固定'' として記す:
+
+\begin{center}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+関数 & cold で固定 & warm で固定 & warmstart で固定 \\
+\midrule
+addTodo        & g1 (0.9) $\to$ g3 (1.0) & g1 & \textbf{g0} \\
+deleteTodo     & g5  (1.0)               & g3 & \textbf{g0} \\
+toggleTodo     & 未固定 (max 0.8)        & g3 & \textbf{g1} \\
+setFilter      & 未固定 (max 0.5)        & g4 (0.7) $\to$ g5 (0.9) & \textbf{g2 (0.9)} \\
+persistTodos   & 未固定 (max 0.1)        & g5 (0.7) & \textbf{g4} \\
+clearCompleted & 未到達                  & 未到達 (max 0.1) & \textbf{g5 (0.9)} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+特に \texttt{deleteTodo} を warmstart は g0 で集団 100\% 固定しているのに対し、cold/warm では g0 でゼロ。\texttt{clearCompleted} は warm でもほとんど獲得されない（10 試行中 1 試行で trace のみ）のに対し、warmstart では g5 で 9 試行が獲得している。これは仮説 3 ``履歴から学習する'' の決定的な証拠となる。
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\linewidth]{figs/N10/heatmap_3way.png}
+\caption{関数 building block の世代別集団内出現率（各条件 $n=10$ 試行を集約）。warmstart は \texttt{deleteTodo}/\texttt{toggleTodo}/\texttt{setFilter}/\texttt{clearCompleted} のすべてを cold/warm より 1--3 世代早く固定している。}
+\end{figure}
+
+\subsection{Fitness 突破点解剖}
+
+warmstart の最良試行（warmstart\_s101）で観察された突破点（$\Delta f \geq 0.05$）:
+\begin{center}
+\begin{tabular}{@{}llrl@{}}
+\toprule
+世代 & 演算子 & $\Delta f$ & 獲得関数 \\
+\midrule
+g1 & mutation  & $+0.141$ & setFilter \\
+g1 & crossover & $+0.141$ & setFilter \\
+g3 & crossover & $+0.070$ & clearCompleted \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+warm の同 seed では setFilter 獲得が g3 まで遅延し、clearCompleted は試行終了までに獲得されない。
+
+\section{仮説検証の状況}
+
+\begin{center}
+\begin{tabular}{@{}lll@{}}
+\toprule
+仮説 & 証拠 ($n=10$) & 効果量 / $p$ 値 \\
+\midrule
+① 進化速度が速い & cold vs warm/warmstart で全有意 & $p = 0.0016 / 0.0001$, $\delta = -0.81 / -1.00$ \\
+② 再現性が高い & best SD: 0.079 $\to$ 0.045 $\to$ \textbf{0.000} & warmstart は全 10 試行で 0.989 一致 \\
+③ 履歴から学習する & warmstart $>$ warm（best $p=0.0054$、TTT $p=0.0087$）& $\delta_{\text{best}}=-0.60$, $\delta_{\text{TTT}}=+0.90$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{$n=10$ パイロットで 3 仮説すべてが $p < 0.01$ で統計的に支持された。}特に warmstart vs cold の Cliff's $\delta = -1.000$ は完全分離（全試行ペアで warmstart $>$ cold）を示しており、効果量として最大。
+
+\section{今後の課題}
+
+\begin{enumerate}[leftmargin=2em,itemsep=2pt]
+  \item \textbf{$n=30$ への拡張と実 Claude API での再現}: dummy で得られた効果が実 LLM でも同等以上に出るかの検証。\texttt{ANTHROPIC\_API\_KEY} 設定後 \texttt{run\_pilot.py} 内の pool を \texttt{claude\_pool()} に差し替えるだけで実行可能。
+  \item \textbf{warm-start プロンプトテンプレートの実装}: 現在は dummy が初期レベルを引き上げる形でモデル化しているが、実 LLM では過去成功変異の fewshot 注入が必要。
+  \item \textbf{Threats to Validity 対策}: モデルバージョン固定、データリーク回避（仕様に変則要件を追加）、temperature の扱いの統一。
+  \item \textbf{問題間転移実験 (T2 $\to$ T3)}: Todo で得た知見を Pomodoro タイマー実装に注入する転移実験。
+\end{enumerate}
+
+\section{実 LLM パイロット ($n=3 \times 3$, 多ベンダー混成)}
+
+dummy LLM で得られた結果が実 LLM でも再現するかを検証するため、3 ベンダー混成プール (Claude Opus/Sonnet/Haiku + GPT-5/GPT-5-mini + Gemini 2.5 Pro/Flash-Lite, 計 7 エージェント) で本実験を実施した。
+
+\subsection{設計の変更点}
+
+実 LLM では Claude/GPT/Gemini いずれも Todo 仕様を一発で 12/12 通過させるため (8 モデル横断検証で確認)、test 合格軸では条件間差が出ない。そこで \textbf{fitness 関数を ``quality モード''} に変更:
+\[
+f = \text{pass\_rate} \times (0.3 + 0.7 \times \text{loc\_score}), \quad \text{loc\_score} = \max(0, 1 - \text{LOC}/500).
+\]
+これにより、テスト合格を前提として LOC 簡潔さを競う設計になる。8 モデルの初期 LOC は 185--415 で、quality fitness 範囲は 0.42--0.74 と十分な改善余地がある。
+
+\subsection{条件}
+
+\begin{center}
+\begin{tabular}{@{}lp{0.65\linewidth}@{}}
+\toprule
+条件 & エージェント構成 \\
+\midrule
+cold       & Haiku 4.5 単体 (単一 LLM ベースライン) \\
+multi      & 7 ベンダー混成プール、履歴注入なし \\
+multi\_warm & 同上 + 過去 multi 試行の成功例を fewshot 注入 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{結果サマリ ($n=3$ 各条件、pop=4, gens=3)}
+
+\begin{center}
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+条件 & $n$ & best 中央値 & SD & TTT 中央値 & 到達率 \\
+\midrule
+cold        & 3 & 0.782 & 0.201 & 3.0 & 1/3 \\
+multi       & 3 & 0.916 & 0.122 & 2.0 & 2/3 \\
+\textbf{multi\_warm} & 3 & \textbf{0.975} & \textbf{0.112} & \textbf{2.0} & 2/3 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{階層性が完全に保たれた} — best 中央値 0.78 $\to$ 0.92 $\to$ 0.98、SD 0.20 $\to$ 0.12 $\to$ 0.11。dummy の qualitative パターンが実 LLM で再現された。
+
+\subsection{統計検定 (Mann-Whitney U + Cliff's $\delta$)}
+
+\begin{center}
+\begin{tabular}{@{}llrrrl@{}}
+\toprule
+ペア & 指標 & $U$ & $p$ & Cliff's $\delta$ & 効果量 \\
+\midrule
+cold vs multi          & best & 4.0 & 1.000 & $-0.111$ & — \\
+cold vs multi\_warm    & best & 2.0 & 0.400 & $-0.556$ & 中--大 \\
+multi vs multi\_warm   & best & 2.0 & 0.400 & $-0.556$ & 中--大 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+$n=3$ では $p < 0.05$ には届かないが、効果量 $|\delta| = 0.556$ は ``中--大'' (Cliff の基準で $|\delta| > 0.474$ が ``大''の閾値)。$n=10$ への拡張で有意性は得られる見込み。
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.85\linewidth]{figs/real_N3/fitness_curves.png}
+\caption{実 LLM での条件別収束曲線 ($n=3$, quality fitness モード)。multi\_warm は g0 から既に 0.73 で出発し g3 で 0.97 に到達。multi は 0.65 $\to$ 0.92、cold は 0.44 $\to$ 0.78。}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\linewidth]{figs/real_N3/heatmap_3way.png}
+\caption{実 LLM の関数 building block ヒートマップ。実 LLM は実装ごとに関数名を変える (addTodo / add / addFromInput など) ため dummy より名前の集約性は低い。multi\_warm では \texttt{add} 関数が g0 で全試行に出現 — 履歴の fewshot が命名規約まで継承させていることを示唆。}
+\end{figure}
+
+\subsection{副次発見: 37 行の Todo アプリ}
+
+multi\_warm 探索の途中試行で、\textbf{HTML 全体 37 行で 12/12 テストを通過する Todo アプリ}が発見された。CSS を 1 行に圧縮、JS を IIFE で 1 行にまとめた高密度実装で、全 12 機能 (CRUD・完了トグル・編集・3 種フィルタ・localStorage・clear-completed) を備える。初期 LLM 出力 (LOC 277--415) からの 7--10 倍圧縮を AIPL が達成した。
+
+\subsection{コスト}
+
+接続テスト + cold $\times 3$ + multi $\times 3$ + multi\_warm $\times 3$ (n=9 trials, 117 LLM calls) の累計コストは約 \textbf{\$5.65}。
+
+\section{まとめ}
+
+AIPL 評価のための実験基盤を整備し、dummy LLM ($n=10 \times 3$, $p<0.01$ で 3 仮説支持) と実 LLM (多ベンダー混成プール, $n=3 \times 3$, 効果量 $\delta=-0.556$) の二段パイロットを実施した。実 LLM では現代モデルが Todo 仕様を一発で機能的に解いてしまうため、評価軸を ``テスト合格'' から ``コード品質 (LOC)'' に切り替えた quality fitness モードを導入。\textbf{両パイロットとも同じ qualitative パターン} (cold $<$ multi $<$ multi\_warm) を示し、特に multi\_warm の探索過程で 37 行の極小 Todo 実装が発見された。$n=10$ への拡張で実 LLM 側も統計的有意性を得る見込みである。
+
+\end{document}

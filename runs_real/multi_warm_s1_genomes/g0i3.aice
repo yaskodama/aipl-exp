@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>単一HTML Todo</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Noto Sans JP, sans-serif; margin: 2rem; }
+  .app { max-width: 600px; margin: 0 auto; }
+  .row { display: flex; gap: .5rem; }
+  input[type="text"] { flex: 1; padding: .6rem .7rem; border: 1px solid #bbb; border-radius: 6px; }
+  button { padding: .55rem .9rem; border: 1px solid #aaa; border-radius: 6px; background: #eee; cursor: pointer; }
+  button:hover { filter: brightness(0.98); }
+  ul { list-style: none; padding: 0; margin: 1rem 0; }
+  [data-testid="todo-item"] { display: flex; align-items: center; gap: .6rem; padding: .5rem .4rem; border-bottom: 1px solid #e0e0e0; }
+  [data-testid="todo-item"].completed [data-testid="todo-text"] { text-decoration: line-through; opacity: .6; }
+  [data-testid="todo-text"] { flex: 1; outline: none; word-break: break-word; padding: .2rem .3rem; border-radius: 4px; }
+  [data-testid="todo-text"].editing { background: rgba(125, 181, 255, 0.15); }
+  .filters { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+  .filters button.active { background: #d0e8ff; border-color: #7fb7ff; }
+  .muted { opacity: .7; font-size: .9rem; }
+  .spacer { flex: 1; }
+</style>
+</head>
+<body>
+  <div class="app">
+    <h1>Todo</h1>
+    <div class="row">
+      <input type="text" placeholder="やることを入力して Enter" data-testid="new-todo-input" aria-label="新しいTodoを入力">
+      <button data-testid="add-btn" aria-label="追加">追加</button>
+    </div>
+
+    <ul data-testid="todo-list" aria-label="Todo一覧"></ul>
+
+    <div class="filters">
+      <div class="muted">表示:</div>
+      <button data-testid="filter-all" aria-pressed="true">全て</button>
+      <button data-testid="filter-active" aria-pressed="false">未完了</button>
+      <button data-testid="filter-completed" aria-pressed="false">完了</button>
+      <div class="spacer"></div>
+      <button data-testid="clear-completed" aria-label="完了を一括削除">完了を一括削除</button>
+    </div>
+  </div>
+
+<script>
+(function() {
+  'use strict';
+
+  const LS_KEY = 'todo-items-v1';
+  const LS_FILTER_KEY = 'todo-filter-v1';
+
+  /** @type {{id:string,text:string,completed:boolean}[]} */
+  let todos = [];
+  /** @type {'all'|'active'|'completed'} */
+  let currentFilter = 'all';
+
+  // DOM refs
+  const $input = document.querySelector('[data-testid="new-todo-input"]');
+  const $addBtn = document.querySelector('[data-testid="add-btn"]');
+  const $list = document.querySelector('[data-testid="todo-list"]');
+  const $filterAll = document.querySelector('[data-testid="filter-all"]');
+  const $filterActive = document.querySelector('[data-testid="filter-active"]');
+  const $filterCompleted = document.querySelector('[data-testid="filter-completed"]');
+  const $clearCompleted = document.querySelector('[data-testid="clear-completed"]');
+
+  // Helpers
+  const genId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+
+  function load() {
+    try {
+      const raw = localStorage.getItem(LS_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          todos = parsed.filter(t => t && typeof t.id === 'string' && typeof t.text === 'string')
+                        .map(t => ({ id: t.id, text: t.text, completed: !!t.completed }));
+        }
+      }
+    } catch (_) { /* ignore */ }
+    try {
+      const f = localStorage.getItem(LS_FILTER_KEY);
+      if (f === 'all' || f === 'active' || f === 'completed') currentFilter = f;
+    } catch (_) { /* ignore */ }
+  }
+
+  function save() {
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify(todos));
+    } catch (_) { /* ignore */ }
+  }
+
+  function saveFilter() {
+    try {
+      localStorage.setItem(LS_FILTER_KEY, currentFilter);
+    } catch (_) { /* ignore */ }
+  }
+
+  function sync() {
+    load();
+    render();
+  }
+
+  function add(text) {
+    const t = (text ?? '').trim();
+    if (!t) return;
+    todos.push({ id: genId(), text: t, completed: false });
+    save();
+    render();
+  }
+
+  function del(id) {
+    const i = todos.findIndex(t => t.id === id);
+    if (i >= 0) {
+      todos.splice(i, 1);
+      save();
+      render();
+    }
+  }
+
+  function tog(id) {
+    const t = todos.find(x => x.id === id);
+    if (t) {
+      t.completed = !t.completed;
+      save();
+      render();
+    }
+  }
+
+  function upd(id, newText) {
+    const t = todos.find(x => x.id === id);
+    if (!t) return;
+    const v = (newText ?? '').trim();
+    if (!v) {
+      // 空文字は元の値を保持（仕様上必須ではないため安全側）
+      render();
+      return;
+    }
+    t.text = v;
+    save();
+    render();
+  }
+
+  function clearCompleted() {
+    const before = todos.length;
+    todos = todos.filter(t => !t.completed);
+    if (todos.length !== before) {
+      save();
+      render();
+    }
+  }
+
+  function setFilter(f) {
+    currentFilter = f;
+    saveFilter();
+    render();
+  }
+
+  function render() {
+    // filters UI
+    const map = { all: $filterAll, active: $filterActive, completed: $filterCompleted };
+    for (const k of ['all','active','completed']) {
+      const btn = map[k];
+      if (!btn) continue;
+      const active = (k === currentFilter);
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-pressed', String(active));
+    }
+
+    // list
+    $list.innerHTML = '';
+    const items = todos.filter(t => {
+      if (currentFilter === 'active') return !t.completed;
+      if (currentFilter === 'completed') return t.completed;
+      return true;
+    });
+
+    for (const t of items) {
+      const li = document.createElement('li');
+      li.dataset.testid = 'todo-item';
+      li.dataset.id = t.id;
+      if (t.completed) li.classList.add('completed');
+
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.dataset.testid = 'todo-toggle';
+      cb.checked = t.completed;
+      cb.setAttribute('aria-label', '完了切替');
+
+      const span = document.createElement('span');
+      span.dataset.testid = 'todo-text';
+      span.textContent = t.text;
+      span.title = 'ダブルクリックで編集';
+
+      const delBtn = document.createElement('button');
+      delBtn.dataset.testid = 'todo-delete';
+      delBtn.textContent = '削除';
+      delBtn.setAttribute('aria-label', '削除');
+
+      li.appendChild(cb);
+      li.appendChild(span);
+      li.appendChild(delBtn);
+      $list.appendChild(li);
+    }
+  }
+
+  // Editing behavior
+  function beginEdit(spanEl) {
+    if (!spanEl || spanEl.dataset.testid !== 'todo-text') return;
+    if (spanEl.isContentEditable) return;
+    const li = spanEl.closest('li[data-testid="todo-item"], li[data-testid=todo-item]') || spanEl.closest('li');
+    const orig = spanEl.textContent || '';
+    spanEl.contentEditable = 'true';
+    spanEl.classList.add('editing');
+    // place caret at end
+    const sel = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(spanEl);
+    range.collapse(false);
+    sel.removeAllRanges();
+    sel.addRange(range);
+    spanEl.focus();
+
+    const commit = () => {
+      const id = (li && li.dataset && li.dataset.id) ? li.dataset.id : null;
+      const txt = spanEl.textContent || '';
+      spanEl.contentEditable = 'false';
+      spanEl.classList.remove('editing');
+      if (id) upd(id, txt);
+      cleanup();
+    };
+
+    const cancel = () => {
+      spanEl.textContent = orig;
+      spanEl.contentEditable = 'false';
+      spanEl.classList.remove('editing');
+      cleanup();
+    };
+
+    const onKey = (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); commit(); }
+      if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+    };
+    const onBlur = () => { commit(); };
+
+    function cleanup() {
+      spanEl.removeEventListener('keydown', onKey);
+      spanEl.removeEventListener('blur', onBlur);
+    }
+
+    spanEl.addEventListener('keydown', onKey);
+    spanEl.addEventListener('blur', onBlur);
+  }
+
+  // Events
+  $addBtn.addEventListener('click', () => {
+    add($input.value);
+    $input.value = '';
+    $input.focus();
+  });
+
+  $input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      add($input.value);
+      $input.value = '';
+    }
+  });
+
+  // Delegate list interactions
+  $list.addEventListener('click', (e) => {
+    const target = e.target;
+    if (!(target instanceof Element)) return;
+
+    // toggle
+    if (target.matches('input[type="checkbox"][data-testid="todo-toggle"], input[type="checkbox"][data-testid=todo-toggle]')) {
+      const li = target.closest('li');
+      const id = li && li.dataset && li.dataset.id;
+      if (id) tog(id);
+      return;
+    }
+    // delete
+    if (target.matches('button[data-testid="todo-delete"], button[data-testid=todo-delete]')) {
+      const li = target.closest('li');
+      const id = li && li.dataset && li.dataset.id;
+      if (id) del(id);
+      return;
+    }
+  });
+
+  $list.addEventListener('dblclick', (e) => {
+    const target = e.target;
+    if (!(target instanceof Element)) return;
+    if (target.matches('[data-testid="todo-text"], [data-testid=todo-text]')) {
+      beginEdit(target);
+    }
+  });
+
+  // Filters
+  $filterAll.addEventListener('click', () => setFilter('all'));
+  $filterActive.addEventListener('click', () => setFilter('active'));
+  $filterCompleted.addEventListener('click', () => setFilter('completed'));
+
+  // Clear completed
+  $clearCompleted.addEventListener('click', () => clearCompleted());
+
+  // Storage sync across tabs/windows
+  window.addEventListener('storage', (e) => {
+    if (e.key === LS_KEY || e.key === LS_FILTER_KEY) {
+      sync();
+    }
+  });
+
+  // Expose for tests/devtools
+  window.add = add;
+  window.del = del;
+  window.tog = tog;
+  window.upd = upd;
+  window.save = save;
+  window.sync = sync;
+
+  // Init
+  load();
+  render();
+})();
+</script>
+</body>
+</html>

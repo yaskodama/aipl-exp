@@ -1,0 +1,15 @@
+{
+  "name": "aipl-exp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "acorn": "^8.16.0"
+  },
+  "scripts": {
+    "install:browsers": "playwright install chromium",
+    "test:calc": "playwright test apps/calculator/tests.spec.js",
+    "test:todo": "playwright test apps/todo/tests.spec.js"
+  }
+}

@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Todo App</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: sans-serif; background: #f0f0f0; display: flex; justify-content: center; padding: 40px 16px; }
+  .container { background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,.15); width: 100%; max-width: 520px; padding: 24px; }
+  h1 { text-align: center; margin-bottom: 20px; color: #333; }
+  .input-row { display: flex; gap: 8px; margin-bottom: 16px; }
+  .input-row input { flex: 1; padding: 8px 12px; border: 1px solid #ccc; border-radius: 4px; font-size: 15px; }
+  .input-row button { padding: 8px 16px; background: #4a90e2; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 15px; }
+  .input-row button:hover { background: #357abd; }
+  .filters { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+  .filters button { padding: 6px 14px; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; background: #fff; font-size: 14px; }
+  .filters button.active { background: #4a90e2; color: #fff; border-color: #4a90e2; }
+  ul[data-testid="todo-list"] { list-style: none; margin-bottom: 12px; }
+  li[data-testid="todo-item"] { display: flex; align-items: center; gap: 8px; padding: 8px 4px; border-bottom: 1px solid #eee; }
+  li[data-testid="todo-item"]:last-child { border-bottom: none; }
+  [data-testid="todo-toggle"] { width: 18px; height: 18px; cursor: pointer; flex-shrink: 0; }
+  [data-testid="todo-text"] { flex: 1; font-size: 15px; word-break: break-all; outline: none; }
+  [data-testid="todo-text"].done { text-decoration: line-through; color: #999; }
+  [data-testid="todo-text"][contenteditable="true"] { background: #fffbe6; border-radius: 3px; padding: 2px 4px; border: 1px solid #f0c040; }
+  [data-testid="todo-delete"] { padding: 4px 10px; background: #e74c3c; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; flex-shrink: 0; }
+  [data-testid="todo-delete"]:hover { background: #c0392b; }
+  .footer { display: flex; justify-content: flex-end; }
+  [data-testid="clear-completed"] { padding: 6px 14px; background: #e0e0e0; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
+  [data-testid="clear-completed"]:hover { background: #c8c8c8; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Todo</h1>
+  <div class="input-row">
+    <input data-testid="new-todo-input" type="text" placeholder="新しいタスクを入力...">
+    <button data-testid="add-btn">追加</button>
+  </div>
+  <div class="filters">
+    <button data-testid="filter-all" class="active">全て</button>
+    <button data-testid="filter-active">未完了</button>
+    <button data-testid="filter-completed">完了</button>
+  </div>
+  <ul data-testid="todo-list"></ul>
+  <div class="footer">
+    <button data-testid="clear-completed">完了を一括削除</button>
+  </div>
+</div>
+<script>
+  const STORAGE_KEY = 'todo_app_items'; // from parent A
+  let todos = []; // from parent A
+  let filter = 'all'; // from parent A
+  let nextId = 1; // from parent A
+
+  const input = document.querySelector('[data-testid="new-todo-input"]'); // from parent A
+  const addBtn = document.querySelector('[data-testid="add-btn"]'); // from parent A
+  const list = document.querySelector('[data-testid="todo-list"]'); // from parent A
+  const filterAll = document.querySelector('[data-testid="filter-all"]'); // from parent A
+  const filterActive = document.querySelector('[data-testid="filter-active"]'); // from parent A
+  const filterCompleted = document.querySelector('[data-testid="filter-completed"]'); // from parent A
+  const clearCompleted = document.querySelector('[data-testid="clear-completed"]'); // from parent A
+
+  function save() { // from parent A
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ todos, nextId })); // from parent A
+  }
+
+  function load() { // from parent A
+    try { // from parent A
+      const data = JSON.parse(localStorage.getItem(STORAGE_KEY)); // from parent A
+      if (data && Array.isArray(data.todos)) { // from parent A
+        todos = data.todos; // from parent A
+        nextId = data.nextId || (todos.length ? Math.max(...todos.map(t => t.id)) + 1 : 1); // from parent A
+      } // from parent A
+    } catch (e) {} // from parent A
+  }
+
+  function add(text) { // from parent A
+    text = text.trim(); // from parent A
+    if (!text) return; // from parent A
+    todos.push({ id: nextId++, text, done: false }); // from parent A
+    save(); // from parent A
+    render(); // from parent A
+  }
+
+  function del(id) { // from parent A
+    todos = todos.filter(t => t.id !== id); // from parent A
+    save(); // from parent A
+    render(); // from parent A
+  }
+
+  function tog(id) { // from parent A
+    const t = todos.find(t => t.id === id); // from parent A
+    if (t) t.done = !t.done; // from parent A
+    save(); // from parent A
+    render(); // from parent A
+  }
+
+  function upd(id, text) { // from parent B
+    const t = todos.find(t => t.id === id); // from parent B
+    if (t) { t.text = text.trim() || t.text; } // from parent B
+    save(); // from parent B
+  }
+
+  function sync(newFilter) { // from parent A
+    filter = newFilter; // from parent A
+    [filterAll, filterActive, filterCompleted].forEach(b => b.classList.remove('active')); // from parent A
+    if (filter === 'all') filterAll.classList.add('active'); // from parent A
+    else if (filter === 'active') filterActive.classList.add('active'); // from parent A
+    else filterCompleted.classList.add('active'); // from parent A
+    render(); // from parent A
+  }
+
+  function render() { // from parent A
+    list.innerHTML = ''; // from parent A
+    const visible = todos.filter(t => { // from parent A
+      if (filter === 'active') return !t.done; // from parent A
+      if (filter === 'completed') return t.done; // from parent A
+      return true; // from parent A
+    }); // from parent A
+    visible.forEach(t => { // from parent A
+      const li = document.createElement('li'); // from parent A
+      li.dataset.testid = 'todo-item'; // from parent A
+
+      const cb = document.createElement('input'); // from parent A
+      cb.type = 'checkbox'; // from parent A
+      cb.dataset.testid = 'todo-toggle'; // from parent A
+      cb.checked = t.done; // from parent A
+      cb.addEventListener('change', () => tog(t.id)); // from parent A
+
+      const span = document.createElement('span'); // from parent A
+      span.dataset.testid = 'todo-text'; // from parent A
+      span.textContent = t.text; // from parent A
+      if (t.done) span.classList.add('done'); // from parent A
+
+      span.addEventListener('dblclick', () => { // from parent A
+        span.contentEditable = 'true'; // from parent A
+        span.focus(); // from parent A
+        const range = document.createRange(); // from parent A
+        range.selectNodeContents(span); // from parent A
+        const sel = window.getSelection(); // from parent A
+        sel.removeAllRanges(); // from parent A
+        sel.addRange(range); // from parent A
+      });
+
+      span.addEventListener('blur', () => {
+        span.contentEditable = 'false'; // from parent B
+        upd(t.id, span.textContent); // from parent B
+        const todo = todos.find(x => x.id === t.id); // from parent B
+        if (todo) span.textContent = todo.text; // from parent B
+        if (t.done) span.classList.add('done'); else span.classList.remove('done'); // from parent A
+      });
+
+      span.addEventListener('keydown', e => { // from parent A
+        if (e.key === 'Enter') { e.preventDefault(); span.blur(); } // from parent A
+        if (e.key === 'Escape') { span.textContent = t.text; span.blur(); } // from parent A
+      });
+
+      const btn = document.createElement('button'); // from parent A
+      btn.dataset.testid = 'todo-delete'; // from parent A
+      btn.textContent = '削除'; // from parent A
+      btn.addEventListener('click', () => del(t.id)); // from parent A
+
+      li.appendChild(cb); // from parent A
+      li.appendChild(span); // from parent A
+      li.appendChild(btn); // from parent A
+      list.appendChild(li); // from parent A
+    });
+  }
+
+  addBtn.addEventListener('click', () => { add(input.value); input.value = ''; input.focus(); }); // from parent A
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') { add(input.value); input.value = ''; } }); // from parent A
+  filterAll.addEventListener('click', () => sync('all')); // from parent A
+  filterActive.addEventListener('click', () => sync('active')); // from parent A
+  filterCompleted.addEventListener('click', () => sync('completed')); // from parent A
+  clearCompleted.addEventListener('click', () => { todos = todos.filter(t => !t.done); save(); render(); }); // from parent A
+
+  load(); // from parent A
+  render(); // from parent A
+</script>
+</body>
+</html>

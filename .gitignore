@@ -1,0 +1,32 @@
+# 秘密情報 — API キー類は絶対にコミットしない
+.env
+.env~
+.env.*
+!.env.example
+*.key
+secrets.json
+
+# Python
+__pycache__/
+*.pyc
+venv/
+
+# Node
+node_modules/
+package-lock.json
+
+# Playwright
+test-results/
+playwright-report/
+
+# 実験結果（巨大）
+runs/
+figs/
+
+# TeX 中間ファイル
+*.aux
+*.log
+*.out
+*.bbl
+*.blg
+*.toc

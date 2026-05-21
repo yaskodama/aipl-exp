@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Todo App</title>
+<style>
+li[data-testid="todo-item"].completed [data-testid="todo-text"]{text-decoration:line-through}
+</style>
+</head>
+<body>
+<h1>Todo</h1>
+<input type="text" data-testid="new-todo-input" placeholder="新しいタスクを入力...">
+<button data-testid="add-btn">追加</button>
+<div>
+  <button data-testid="filter-all" class="active">全て</button>
+  <button data-testid="filter-active">未完了</button>
+  <button data-testid="filter-completed">完了</button>
+</div>
+<ul data-testid="todo-list"></ul>
+<button data-testid="clear-completed">完了を一括削除</button>
+<script>
+const K='todo-app-items-v2',KF='todo-app-filter-v2';
+let todos=[],f='all';
+const $=s=>document.querySelector(s),
+I=$('[data-testid="new-todo-input"]'),
+A=$('[data-testid="add-btn"]'),
+L=$('[data-testid="todo-list"]'),
+FA=$('[data-testid="filter-all"]'),
+FR=$('[data-testid="filter-active"]'),
+FC=$('[data-testid="filter-completed"]'),
+CC=$('[data-testid="clear-completed"]');
+try{todos=JSON.parse(localStorage.getItem(K))||[];f=localStorage.getItem(KF)||'all'}catch(_){}
+const save=()=>{localStorage.setItem(K,JSON.stringify(todos));localStorage.setItem(KF,f)};
+const render=()=>{const v=f==='active'?todos.filter(t=>!t.completed):f==='completed'?todos.filter(t=>t.completed):todos;
+L.innerHTML=v.map(t=>`<li data-testid="todo-item" data-id="${t.id}"${t.completed?' class="completed"':''}><input type="checkbox" data-testid="todo-toggle"${t.completed?' checked':''}><span data-testid="todo-text">${t.text}</span><button data-testid="todo-delete">削除</button></li>`).join('');
+[FA,FR,FC].forEach((b,i)=>b.classList.toggle('active',['all','active','completed'][i]===f));};
+const sync=()=>{save();render()};
+const add=s=>{s=s.trim();if(!s)return;todos.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,8),text:s,completed:false});I.value='';I.focus();sync()};
+const del=id=>{todos=todos.filter(x=>x.id!==id);sync()};
+const tog=id=>{const t=todos.find(x=>x.id===id);if(t){t.completed=!t.completed;sync()}};
+const upd=(id,s)=>{const t=todos.find(x=>x.id===id);if(t){s=String(s).trim();if(s)t.text=s;sync()}};
+A.onclick=()=>add(I.value);
+I.onkeydown=e=>{if(e.key==='Enter')add(I.value)};
+FA.onclick=()=>{f='all';sync()};
+FR.onclick=()=>{f='active';sync()};
+FC.onclick=()=>{f='completed';sync()};
+CC.onclick=()=>{todos=todos.filter(t=>!t.completed);sync()};
+L.onchange=e=>{if(e.target.matches('[data-testid="todo-toggle"]'))tog(e.target.closest('[data-testid="todo-item"]').dataset.id)};
+L.onclick=e=>{if(e.target.matches('[data-testid="todo-delete"]'))del(e.target.closest('[data-testid="todo-item"]').dataset.id)};
+L.ondblclick=e=>{const s=e.target;if(!s.matches('[data-testid="todo-text"]'))return;s.contentEditable='true';s.focus();try{const r=document.createRange();r.selectNodeContents(s);const sel=getSelection();sel.removeAllRanges();sel.addRange(r)}catch(_){}}; 
+L.onkeydown=e=>{const s=e.target;if(!s.matches('[data-testid="todo-text"]')||!s.isContentEditable)return;if(e.key==='Enter'){e.preventDefault();s.blur()}else if(e.key==='Escape'){e.preventDefault();const id=s.closest('[data-testid="todo-item"]').dataset.id;s.textContent=(todos.find(x=>x.id===id)||{}).text||s.textContent;s.blur()}};
+L.onfocusout=e=>{const s=e.target;if(s.matches('[data-testid="todo-text"]')&&s.isContentEditable){s.contentEditable='false';upd(s.closest('[data-testid="todo-item"]').dataset.id,s.textContent)}};
+render();
+</script>
+</body>
+</html>

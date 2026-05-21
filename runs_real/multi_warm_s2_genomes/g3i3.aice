@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8"><title>Todo App</title><style>body{font-family:sans-serif;max-width:600px;margin:2em auto;padding:1em}h1{text-align:center}.input-row{display:flex;gap:.5em;margin-bottom:1em}#new-todo-input{flex:1;padding:.5em;font-size:1em}button{padding:.5em 1em;cursor:pointer}.filters{display:flex;gap:.5em;margin-bottom:1em;justify-content:center}.filters button.active{background:#4a90e2;color:#fff}ul{list-style:none;padding:0}li{display:flex;align-items:center;gap:.5em;padding:.5em;border-bottom:1px solid #eee}li .todo-text{flex:1}li.completed .todo-text,li.completed{text-decoration:line-through;color:#888}li .todo-text[contenteditable="true"]{background:#fffbe6;outline:1px dashed #f5c000;padding:2px}.clear-row{text-align:center;margin-top:1em}</style></head><body>
+<h1>Todo</h1>
+<div class="input-row">
+  <input type="text" data-testid="new-todo-input" id="new-todo-input" placeholder="何をしますか？">
+  <button data-testid="add-btn" id="add-btn">追加</button>
+</div>
+<div class="filters">
+  <button data-testid="filter-all" id="filter-all" class="active">全て</button>
+  <button data-testid="filter-active" id="filter-active">未完了</button>
+  <button data-testid="filter-completed" id="filter-completed">完了</button>
+</div>
+<ul data-testid="todo-list" id="todo-list"></ul>
+<div class="clear-row"><button data-testid="clear-completed" id="clear-completed">完了項目を削除</button></div>
+<script>
+(()=>{const S_KEY='todo-app-data',F_KEY='todo-app-filter',d=document,q=s=>d.querySelector(s),inp=q('[data-testid="new-todo-input"]'),list=q('[data-testid="todo-list"]');let todos=JSON.parse(localStorage.getItem(S_KEY)||"[]"),filter=localStorage.getItem(F_KEY)||"all";const save=()=>{localStorage.setItem(S_KEY,JSON.stringify(todos));localStorage.setItem(F_KEY,filter)},render=()=>{const visible=filter==='active'?todos.filter(t=>!t.completed):filter==='completed'?todos.filter(t=>t.completed):todos;list.innerHTML='';visible.forEach(t=>{const li=d.createElement('li'),cb=d.createElement('input'),span=d.createElement('span'),delBtn=d.createElement('button');Object.assign(li,{dataset:{testid:'todo-item',id:t.id},className:t.completed?'completed':''});Object.assign(cb,{type:'checkbox',dataset:{testid:'todo-toggle'},checked:t.completed,onchange:()=>tog(t.id)});Object.assign(span,{dataset:{testid:'todo-text'},className:'todo-text',textContent:t.text,ondblclick:()=>{span.contentEditable=true;span.focus()},onblur:()=>{span.contentEditable=false;upd(t.id,span.textContent)},onkeydown:e=>{if(e.key==='Enter'||e.key==='Escape'){e.preventDefault();if(e.key==='Escape')span.textContent=t.text;span.blur()}}});Object.assign(delBtn,{dataset:{testid:'todo-delete'},textContent:'削除',onclick:()=>del(t.id)});li.append(cb,span,delBtn);list.append(li)});['all','active','completed'].forEach(f=>q(`[data-testid="filter-${f}"]`).classList.toggle('active',filter===f))},sync=()=>{save();render()},add=text=>{text=text.trim();if(text)todos.push({id:Date.now(),text,completed:false});sync()},del=id=>{todos=todos.filter(t=>t.id!==id);sync()},tog=id=>{const t=todos.find(t=>t.id===id);if(t)t.completed=!t.completed;sync()},upd=(id,text)=>{const t=todos.find(t=>t.id===id);if(!t)return;text=text.trim();if(!text)return del(id);t.text=text;sync()},setFilter=f=>{filter=f;sync()},clearCompleted=()=>{todos=todos.filter(t=>!t.completed);sync()};q('[data-testid="add-btn"]').onclick=()=>{add(inp.value);inp.value='';inp.focus()};inp.onkeydown=e=>{if(e.key==='Enter'){add(inp.value);inp.value=''}};['all','active','completed'].forEach(f=>q(`[data-testid="filter-${f}"]`).onclick=()=>setFilter(f));q('[data-testid="clear-completed"]').onclick=clearCompleted;render();})();
+</script>
+</body></html>

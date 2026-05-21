@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Todo App</title>
+<style>*{box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f5f5f5;margin:0;padding:20px;min-height:100vh}.container{max-width:600px;margin:0 auto;background:#fff;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.1);padding:24px}h1{text-align:center;color:#333;margin-top:0}.input-row{display:flex;gap:8px;margin-bottom:16px}.input-row input{flex:1;padding:10px;font-size:16px;border:1px solid #ccc;border-radius:4px}.input-row button{padding:10px 18px;font-size:16px;background:#4a90e2;color:#fff;border:none;border-radius:4px;cursor:pointer}.input-row button:hover{background:#357abd}.filters{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}.filters button{padding:6px 12px;background:#eee;border:1px solid #ccc;border-radius:4px;cursor:pointer}.filters button.active{background:#4a90e2;color:#fff;border-color:#4a90e2}.clear-btn{margin-left:auto;background:#e74c3c!important;color:#fff!important;border-color:#e74c3c!important}.todo-list{list-style:none;padding:0;margin:0}li{display:flex;align-items:center;gap:8px;padding:10px;border-bottom:1px solid #eee}li:last-child{border-bottom:none}li.completed,li.completed .todo-text{text-decoration:line-through;color:#999}.todo-text{flex:1;padding:4px;outline:none;word-break:break-all}.todo-text[contenteditable="true"]{background:#fff8d6;border:1px dashed #999;border-radius:3px}.delete-btn{padding:4px 10px;background:#e74c3c;color:#fff;border:none;border-radius:4px;cursor:pointer}.delete-btn:hover{background:#c0392b}</style>
+</head>
+<body>
+<div class="container">
+  <h1>Todo App</h1>
+  <div class="input-row">
+    <input type="text" data-testid="new-todo-input" id="newTodoInput" placeholder="新しいタスクを入力...">
+    <button data-testid="add-btn" id="addBtn">追加</button>
+  </div>
+  <div class="filters">
+    <button data-testid="filter-all" id="filterAll" class="active">全て</button>
+    <button data-testid="filter-active" id="filterActive">未完了</button>
+    <button data-testid="filter-completed" id="filterCompleted">完了</button>
+    <button data-testid="clear-completed" id="clearCompleted" class="clear-btn">完了を一括削除</button>
+  </div>
+  <ul data-testid="todo-list" id="todoList" class="todo-list"></ul>
+</div>
+<script>
+(()=>{const SK='todos_v1',FK='todos_filter_v1';let a=[],f='all';const i=document.getElementById('newTodoInput'),b=document.getElementById('addBtn'),L=document.getElementById('todoList'),fa=document.getElementById('filterAll'),fr=document.getElementById('filterActive'),fc=document.getElementById('filterCompleted'),cc=document.getElementById('clearCompleted');
+function load(){try{const d=localStorage.getItem(SK);if(d) a=JSON.parse(d)||[];const ff=localStorage.getItem(FK);if(ff)f=ff}catch(e){a=[]}}
+function save(){localStorage.setItem(SK,JSON.stringify(a));localStorage.setItem(FK,f)}
+function add(text){text=(text||'').trim();if(!text) return;a.push({id:Date.now()+'_'+Math.random().toString(36).slice(2,7),text,completed:false});save();render()}
+function del(id){a=a.filter(t=>t.id!==id);save();render()}
+function tog(id){const t=a.find(x=>x.id===id);if(t) t.completed=!t.completed;save();render()}
+function upd(id,newText){const t=a.find(x=>x.id===id);if(t){newText=newText.trim();if(newText) t.text=newText}save();render()}
+function clearCompleted(){a=a.filter(t=>!t.completed);save();render()}
+function setFilter(x){f=x;save();render()}
+function render(){fa.classList.toggle('active',f==='all');fr.classList.toggle('active',f==='active');fc.classList.toggle('active',f==='completed');L.innerHTML='';const list=a.filter(t=>f==='all'||(f==='active'?!t.completed:t.completed));list.forEach(t=>{const li=document.createElement('li');li.setAttribute('data-testid','todo-item');li.dataset.id=t.id; if(t.completed) li.classList.add('completed'); const cb=document.createElement('input');cb.type='checkbox';cb.setAttribute('data-testid','todo-toggle');cb.checked=t.completed;cb.addEventListener('change',()=>tog(t.id)); const s=document.createElement('span');s.setAttribute('data-testid','todo-text');s.className='todo-text';s.textContent=t.text; const startEdit=()=>{s.setAttribute('contenteditable','true');li.setAttribute('contenteditable','true');s.focus();try{const r=document.createRange();r.selectNodeContents(s);r.collapse(false);const sel=window.getSelection();sel.removeAllRanges();sel.addRange(r)}catch(e){}};li.addEventListener('dblclick',startEdit);s.addEventListener('blur',()=>{if(s.getAttribute('contenteditable')==='true'){s.removeAttribute('contenteditable');li.removeAttribute('contenteditable');upd(t.id,s.textContent)}});s.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();s.blur()}else if(e.key==='Escape'){e.preventDefault();s.textContent=t.text;s.removeAttribute('contenteditable');li.removeAttribute('contenteditable');s.blur()}}); const d=document.createElement('button');d.setAttribute('data-testid','todo-delete');d.className='delete-btn';d.textContent='削除';d.addEventListener('click',ev=>{ev.stopPropagation();del(t.id)});li.append(cb,s,d);L.appendChild(li)})}
+b.addEventListener('click',()=>{add(i.value);i.value='';i.focus()});i.addEventListener('keydown',e=>{if(e.key==='Enter'){add(i.value);i.value=''}});fa.addEventListener('click',()=>setFilter('all'));fr.addEventListener('click',()=>setFilter('active'));fc.addEventListener('click',()=>setFilter('completed'));cc.addEventListener('click',clearCompleted);load();render();
+})();
+</script>
+</body>
+</html>

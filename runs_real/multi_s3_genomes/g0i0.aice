@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Todo App</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #f4f5f7;
+    margin: 0;
+    padding: 20px;
+    color: #333;
+  }
+  .container {
+    max-width: 600px;
+    margin: 0 auto;
+    background: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  }
+  h1 { text-align: center; margin-top: 0; }
+  .input-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .input-row input {
+    flex: 1;
+    padding: 8px 12px;
+    font-size: 16px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+  }
+  .input-row button {
+    padding: 8px 16px;
+    font-size: 16px;
+    border: none;
+    background: #4a90e2;
+    color: #fff;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .input-row button:hover { background: #357ab8; }
+  .filters {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 12px;
+    justify-content: center;
+  }
+  .filters button {
+    padding: 6px 12px;
+    border: 1px solid #ccc;
+    background: #fff;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .filters button.active {
+    background: #4a90e2;
+    color: #fff;
+    border-color: #4a90e2;
+  }
+  ul {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 16px 0;
+  }
+  li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    border-bottom: 1px solid #eee;
+  }
+  li:last-child { border-bottom: none; }
+  li .todo-text {
+    flex: 1;
+    padding: 4px;
+    outline: none;
+  }
+  li .todo-text[contenteditable="true"] {
+    background: #fffbe6;
+    border: 1px dashed #999;
+    border-radius: 3px;
+  }
+  li.completed .todo-text {
+    text-decoration: line-through;
+    color: #999;
+  }
+  li button {
+    padding: 4px 10px;
+    background: #e74c3c;
+    color: #fff;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+  }
+  li button:hover { background: #c0392b; }
+  .footer {
+    text-align: right;
+  }
+  .footer button {
+    padding: 6px 12px;
+    background: #888;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .footer button:hover { background: #666; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Todo App</h1>
+  <div class="input-row">
+    <input type="text" data-testid="new-todo-input" placeholder="やることを入力..." />
+    <button data-testid="add-btn">追加</button>
+  </div>
+  <div class="filters">
+    <button data-testid="filter-all">全て</button>
+    <button data-testid="filter-active">未完了</button>
+    <button data-testid="filter-completed">完了</button>
+  </div>
+  <ul data-testid="todo-list"></ul>
+  <div class="footer">
+    <button data-testid="clear-completed">完了項目を削除</button>
+  </div>
+</div>
+
+<script>
+(function() {
+  const STORAGE_KEY = 'todo-app-data-v1';
+  const FILTER_KEY = 'todo-app-filter-v1';
+
+  let todos = [];
+  let filter = 'all';
+
+  const input = document.querySelector('[data-testid="new-todo-input"]');
+  const addBtn = document.querySelector('[data-testid="add-btn"]');
+  const list = document.querySelector('[data-testid="todo-list"]');
+  const filterAll = document.querySelector('[data-testid="filter-all"]');
+  const filterActive = document.querySelector('[data-testid="filter-active"]');
+  const filterCompleted = document.querySelector('[data-testid="filter-completed"]');
+  const clearCompletedBtn = document.querySelector('[data-testid="clear-completed"]');
+
+  function load() {
+    try {
+      const data = localStorage.getItem(STORAGE_KEY);
+      if (data) todos = JSON.parse(data);
+      const f = localStorage.getItem(FILTER_KEY);
+      if (f) filter = f;
+    } catch(e) {
+      todos = [];
+    }
+  }
+
+  function save() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(todos));
+    localStorage.setItem(FILTER_KEY, filter);
+  }
+
+  function uid() {
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  }
+
+  function addTodo(text) {
+    text = text.trim();
+    if (!text) return;
+    todos.push({ id: uid(), text: text, completed: false });
+    save();
+    render();
+  }
+
+  function deleteTodo(id) {
+    todos = todos.filter(t => t.id !== id);
+    save();
+    render();
+  }
+
+  function toggleTodo(id) {
+    const t = todos.find(t => t.id === id);
+    if (t) {
+      t.completed = !t.completed;
+      save();
+      render();
+    }
+  }
+
+  function updateTodo(id, newText) {
+    const t = todos.find(t => t.id === id);
+    if (t) {
+      const trimmed = newText.trim();
+      if (trimmed) {
+        t.text = trimmed;
+      }
+      save();
+      render();
+    }
+  }
+
+  function clearCompleted() {
+    todos = todos.filter(t => !t.completed);
+    save();
+    render();
+  }
+
+  function setFilter(f) {
+    filter = f;
+    save();
+    render();
+  }
+
+  function getFiltered() {
+    if (filter === 'active') return todos.filter(t => !t.completed);
+    if (filter === 'completed') return todos.filter(t => t.completed);
+    return todos;
+  }
+
+  function render() {
+    list.innerHTML = '';
+    const visible = getFiltered();
+    visible.forEach(todo => {
+      const li = document.createElement('li');
+      li.setAttribute('data-testid', 'todo-item');
+      li.dataset.id = todo.id;
+      if (todo.completed) li.classList.add('completed');
+
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.setAttribute('data-testid', 'todo-toggle');
+      checkbox.checked = todo.completed;
+      checkbox.addEventListener('change', () => toggleTodo(todo.id));
+
+      const span = document.createElement('span');
+      span.className = 'todo-text';
+      span.setAttribute('data-testid', 'todo-text');
+      span.textContent = todo.text;
+      span.addEventListener('dblclick', () => {
+        span.setAttribute('contenteditable', 'true');
+        span.focus();
+        // place cursor at end
+        const range = document.createRange();
+        range.selectNodeContents(span);
+        range.collapse(false);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+      });
+      span.addEventListener('blur', () => {
+        if (span.getAttribute('contenteditable') === 'true') {
+          span.removeAttribute('contenteditable');
+          updateTodo(todo.id, span.textContent);
+        }
+      });
+      span.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          span.blur();
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          span.textContent = todo.text;
+          span.blur();
+        }
+      });
+
+      const delBtn = document.createElement('button');
+      delBtn.setAttribute('data-testid', 'todo-delete');
+      delBtn.textContent = '削除';
+      delBtn.addEventListener('click', () => deleteTodo(todo.id));
+
+      li.appendChild(checkbox);
+      li.appendChild(span);
+      li.appendChild(delBtn);
+      list.appendChild(li);
+    });
+
+    // update filter buttons active state
+    [filterAll, filterActive, filterCompleted].forEach(b => b.classList.remove('active'));
+    if (filter === 'all') filterAll.classList.add('active');
+    else if (filter === 'active') filterActive.classList.add('active');
+    else if (filter === 'completed') filterCompleted.classList.add('active');
+  }
+
+  addBtn.addEventListener('click', () => {
+    addTodo(input.value);
+    input.value = '';
+    input.focus();
+  });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      addTodo(input.value);
+      input.value = '';
+    }
+  });
+  filterAll.addEventListener('click', () => setFilter('all'));
+  filterActive.addEventListener('click', () => setFilter('active'));
+  filterCompleted.addEventListener('click', () => setFilter('completed'));
+  clearCompletedBtn.addEventListener('click', clearCompleted);
+
+  load();
+  render();
+})();
+</script>
+</body>
+</html>

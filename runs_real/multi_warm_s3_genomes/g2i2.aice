@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Todo App</title>
+<style>
+  body { font-family: sans-serif; max-width: 600px; margin: 2em auto; padding: 1em; }
+  h1 { text-align: center; }
+  .input-row { display: flex; gap: 0.5em; margin-bottom: 1em; }
+  #new-todo-input { flex: 1; padding: 0.5em; font-size: 1em; }
+  button { padding: 0.5em 1em; cursor: pointer; }
+  .filters { display: flex; gap: 0.5em; margin-bottom: 1em; justify-content: center; }
+  .filters button.active { background: #4a90e2; color: white; }
+  ul { list-style: none; padding: 0; }
+  li { display: flex; align-items: center; gap: 0.5em; padding: 0.5em; border-bottom: 1px solid #ddd; }
+  li.completed .todo-text { text-decoration: line-through; color: #888; }
+  .todo-text { flex: 1; padding: 0.25em; }
+  .todo-text[contenteditable="true"] { background: #ffffe0; outline: 1px solid #4a90e2; }
+  .todo-delete { background: #e74c3c; color: white; border: none; padding: 0.25em 0.5em; }
+  .clear-row { text-align: center; margin-top: 1em; }
+</style>
+</head>
+<body>
+<h1>Todo</h1>
+<div class="input-row">
+  <input type="text" data-testid="new-todo-input" id="new-todo-input" placeholder="やることを入力">
+  <button data-testid="add-btn" id="add-btn">追加</button>
+</div>
+<div class="filters">
+  <button data-testid="filter-all" id="filter-all">全て</button>
+  <button data-testid="filter-active" id="filter-active">未完了</button>
+  <button data-testid="filter-completed" id="filter-completed">完了</button>
+</div>
+<ul data-testid="todo-list" id="todo-list"></ul>
+<div class="clear-row">
+  <button data-testid="clear-completed" id="clear-completed">完了を一括削除</button>
+</div>
+
+<script>
+(function () {
+  const STORAGE_KEY = 'todos.v1';
+  const FILTER_KEY = 'todos.filter';
+  let todos = [];
+  let filter = 'all';
+
+  // from parent A - safe load with try/catch to handle corrupt localStorage data
+  function load() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      todos = raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      todos = [];
+    }
+    filter = localStorage.getItem(FILTER_KEY) || 'all';
+  }
+
+  // from parent A - dedicated save function
+  function save() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(todos));
+    localStorage.setItem(FILTER_KEY, filter);
+  }
+
+  // from parent A - sync combines save + render
+  function sync() {
+    save();
+    render();
+  }
+
+  // from parent A - explicit add function with trim guard
+  function add(text) {
+    text = (text || '').trim();
+    if (!text) return;
+    todos.push({ id: Date.now() + Math.random(), text: text, completed: false });
+    sync();
+  }
+
+  // from parent A - DOM element creation (XSS-safe, no innerHTML for user content)
+  // from parent B - data-id attribute on li for event delegation
+  function render() {
+    const list = document.getElementById('todo-list');
+    list.innerHTML = '';
+
+    // from parent A - readable filter logic
+    const filtered = todos.filter(t => {
+      if (filter === 'active') return !t.completed;
+      if (filter === 'completed') return t.completed;
+      return true;
+    });
+
+    filtered.forEach(t => {
+      const li = document.createElement('li');
+      li.setAttribute('data-testid', 'todo-item');
+      li.dataset.id = t.id; // from parent B - store id for delegation lookups
+      if (t.completed) li.classList.add('completed');
+
+      // from parent A - DOM creation for checkbox
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.setAttribute('data-testid', 'todo-toggle');
+      cb.checked = t.completed;
+
+      // from parent A - DOM creation for text span (safe textContent assignment)
+      const span = document.createElement('span');
+      span.setAttribute('data-testid', 'todo-text');
+      span.className = 'todo-text';
+      span.textContent = t.text;
+
+      // from parent A - DOM creation for delete button
+      const delBtn = document.createElement('button');
+      delBtn.setAttribute('data-testid', 'todo-delete');
+      delBtn.className = 'todo-delete';
+      delBtn.textContent = '削除';
+
+      li.appendChild(cb);
+      li.appendChild(span);
+      li.appendChild(delBtn);
+      list.appendChild(li);
+    });
+
+    // from parent A - explicit filter button active-state update by id
+    ['all', 'active', 'completed'].forEach(f => {
+      const btn = document.getElementById('filter-' + f);
+      if (btn) btn.classList.toggle('active', filter === f);
+    });
+  }
+
+  const input = document.getElementById('new-todo-input');
+  const todoList = document.getElementById('todo-list');
+
+  // from parent A - add button click clears input and refocuses
+  document.getElementById('add-btn').addEventListener('click', () => {
+    add(input.value);
+    input.value = '';
+    input.focus();
+  });
+
+  // from parent A - Enter key on input
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      add(e.target.value);
+      e.target.value = '';
+    }
+  });
+
+  // from parent B - filter clicks via event delegation on .filters container
+  document.querySelector('.filters').addEventListener('click', e => {
+    if (e.target.tagName === 'BUTTON') {
+      filter = e.target.id.replace('filter-', '');
+      sync();
+    }
+  });
+
+  // from parent A - clear completed handler
+  document.getElementById('clear-completed').addEventListener('click', () => {
+    todos = todos.filter(t => !t.completed);
+    sync();
+  });
+
+  // from parent B - event delegation on todo list for delete and toggle clicks
+  todoList.addEventListener('click', e => {
+    const li = e.target.closest('li[data-id]');
+    if (!li) return;
+    const id = Number(li.dataset.id);
+    if (e.target.matches('[data-testid="todo-delete"]')) {
+      todos = todos.filter(t => t.id !== id);
+      sync();
+    } else if (e.target.matches('[data-testid="todo-toggle"]')) {
+      const todo = todos.find(t => t.id === id);
+      if (todo) {
+        todo.completed = !todo.completed;
+        sync();
+      }
+    }
+  });
+
+  // from parent B - dblclick editing via event delegation on list
+  todoList.addEventListener('dblclick', e => {
+    const span = e.target;
+    if (!span.matches('[data-testid="todo-text"]')) return;
+    span.setAttribute('contenteditable', 'true');
+    span.focus();
+    // from parent A - place cursor at end of content
+    const range = document.createRange();
+    range.selectNodeContents(span);
+    range.collapse(false);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  });
+
+  // from parent B - focusout is more robust than blur for contenteditable spans
+  // from parent B - restore original text if user clears the span entirely
+  todoList.addEventListener('focusout', e => {
+    const span = e.target;
+    if (!span.matches('[data-testid="todo-text"]') || span.getAttribute('contenteditable') !== 'true') return;
+    span.setAttribute('contenteditable', 'false');
+    const id = Number(span.closest('li').dataset.id);
+    const todo = todos.find(t => t.id === id);
+    const newText = span.textContent.trim();
+    if (todo && newText) {
+      todo.text = newText; // from parent B - persist new text
+    } else if (todo) {
+      span.textContent = todo.text; // from parent B - restore if empty
+    }
+    sync();
+  });
+
+  // from parent A - Enter commits edit; Escape restores original text
+  todoList.addEventListener('keydown', e => {
+    const span = e.target;
+    if (!span.matches('[data-testid="todo-text"]') || span.getAttribute('contenteditable') !== 'true') return;
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      span.blur();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      // from parent A - restore text on Escape before blur
+      const id = Number(span.closest('li').dataset.id);
+      const todo = todos.find(t => t.id === id);
+      if (todo) span.textContent = todo.text;
+      span.blur();
+    }
+  });
+
+  // from parent A - load first, then render
+  load();
+  render();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Todo App</title>
+  <style>
+    /* from parent A */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "ヒラギノ角ゴ ProN", "Hiragino Kaku Gothic ProN", "メイリオ", Meiryo, Arial, sans-serif;
+      background: #f0f2f5;
+      display: flex;
+      justify-content: center;
+      padding: 40px 16px;
+      color: #333;
+    }
+    .container {
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+      padding: 28px;
+      width: 100%;
+      max-width: 640px;
+    }
+    h1 { text-align: center; margin-bottom: 18px; font-size: 1.8rem; }
+    .input-area { display: flex; gap: 8px; margin-bottom: 14px; }
+    input[data-testid="new-todo-input"] {
+      flex: 1;
+      padding: 10px 12px;
+      border: 1px solid #d6dbe0;
+      border-radius: 6px;
+      font-size: 1rem;
+      outline: none;
+    }
+    input[data-testid="new-todo-input"]:focus { border-color: #4a90e2; box-shadow: 0 0 0 3px rgba(74,144,226,0.08); }
+    button[data-testid="add-btn"] {
+      background: #4a90e2; color: #fff; border: none; padding: 10px 16px; border-radius: 6px; cursor: pointer;
+    }
+    .filters { display: flex; gap: 8px; margin-bottom: 12px; justify-content: center; flex-wrap: wrap; }
+    .filters button {
+      padding: 6px 12px; border-radius: 18px; border: 1px solid #d6dbe0; background: #fff; cursor: pointer;
+    }
+    .filters button.active { background: #4a90e2; color: #fff; border-color: #4a90e2; }
+    .filters button:hover { background: #4a90e2; color: #fff; border-color: #4a90e2; }
+    ul[data-testid="todo-list"] { list-style: none; margin: 0; padding: 0; margin-bottom: 12px; }
+    li[data-testid="todo-item"] {
+      display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid #eee;
+    }
+    li[data-testid="todo-item"]:last-child { border-bottom: none; }
+    li[data-testid="todo-item"]:hover { background: #fbfdff; }
+    li[data-testid="todo-item"] input[data-testid="todo-toggle"] { width: 18px; height: 18px; cursor: pointer; flex-shrink: 0; }
+    [data-testid="todo-text"] { flex: 1; font-size: 1rem; outline: none; padding: 2px 4px; border-radius: 4px; word-break: break-word; white-space: pre-wrap; }
+    [data-testid="todo-text"][contenteditable="true"] { border: 1px dashed #4a90e2; background: #f0f7ff; }
+    li[data-testid="todo-item"].completed [data-testid="todo-text"] { text-decoration: line-through; color: #999; }
+    button[data-testid="todo-delete"] {
+      padding: 6px 10px; background: #e74c3c; color: #fff; border: none; border-radius: 6px; cursor: pointer; flex-shrink: 0;
+    }
+    button[data-testid="todo-delete"]:hover { background: #c0392b; } /* from parent B */
+    .footer { display: flex; justify-content: flex-end; }
+    button[data-testid="clear-completed"] { padding: 8px 14px; background: #e67e22; color: #fff; border: none; border-radius: 6px; cursor: pointer; }
+    button[data-testid="clear-completed"]:hover { background: #b9651a; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Todo</h1>
+    <div class="input-area">
+      <input type="text" data-testid="new-todo-input" placeholder="新しいタスクを入力..." />
+      <button data-testid="add-btn">追加</button>
+    </div>
+    <div class="filters">
+      <button data-testid="filter-all" class="active">全て</button>
+      <button data-testid="filter-active">未完了</button>
+      <button data-testid="filter-completed">完了</button>
+    </div>
+    <ul data-testid="todo-list"></ul>
+    <div class="footer">
+      <button data-testid="clear-completed">完了を一括削除</button>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      // storage keys
+      const STORAGE_KEY = 'todo-app-items-v2'; // from parent A
+      const FILTER_KEY = 'todo-app-filter-v2'; // from parent A
+
+      // app state
+      let todos = []; // from parent A / from parent B
+      let currentFilter = 'all'; // from parent A / from parent B
+
+      // DOM refs
+      const input = document.querySelector('[data-testid="new-todo-input"]'); // from parent A / from parent B
+      const addBtn = document.querySelector('[data-testid="add-btn"]'); // from parent A / from parent B
+      const todoList = document.querySelector('[data-testid="todo-list"]'); // from parent A / from parent B
+      const filterAll = document.querySelector('[data-testid="filter-all"]'); // from parent A / from parent B
+      const filterActive = document.querySelector('[data-testid="filter-active"]'); // from parent A / from parent B
+      const filterCompleted = document.querySelector('[data-testid="filter-completed"]'); // from parent A / from parent B
+      const clearCompletedBtn = document.querySelector('[data-testid="clear-completed"]'); // from parent A / from parent B
+
+      // load from storage
+      function loadFromStorage() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY); // from parent A / from parent B
+          todos = raw ? JSON.parse(raw) : []; // from parent A / from parent B
+          const f = localStorage.getItem(FILTER_KEY); // from parent B
+          if (f) currentFilter = f; // from parent B
+        } catch (e) {
+          todos = []; // from parent A
+        }
+      }
+
+      // save to storage
+      function saveToStorage() {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(todos)); // from parent A / from parent B
+        localStorage.setItem(FILTER_KEY, currentFilter); // from parent B
+      }
+
+      // id generator
+      function generateId() {
+        return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); // from parent B
+      }
+
+      // add todo
+      function addTodo(text) {
+        const t = text.trim(); // from parent A / from parent B
+        if (!t) return;
+        todos.push({ id: generateId(), text: t, completed: false }); // from parent A / from parent B
+        saveToStorage();
+        render();
+      }
+
+      // delete todo
+      function deleteTodo(id) {
+        todos = todos.filter(x => x.id !== id); // from parent A / from parent B
+        saveToStorage();
+        render();
+      }
+
+      // toggle completed
+      function toggleTodo(id) {
+        const it = todos.find(x => x.id === id); // from parent A / from parent B
+        if (it) {
+          it.completed = !it.completed;
+          saveToStorage();
+          render();
+        }
+      }
+
+      // update text after edit
+      function updateText(id, newText) {
+        const it = todos.find(x => x.id === id); // from parent A / from parent B
+        if (it) {
+          const trimmed = String(newText).trim();
+          if (trimmed) {
+            it.text = trimmed;
+          }
+          saveToStorage();
+          render();
+        }
+      }
+
+      // clear completed
+      function clearCompleted() {
+        todos = todos.filter(x => !x.completed); // from parent A / from parent B
+        saveToStorage();
+        render();
+      }
+
+      // set filter
+      function setFilter(f) {
+        currentFilter = f; // from parent B
+        saveToStorage();
+        render();
+      }
+
+      // get filtered list
+      function getFiltered() {
+        if (currentFilter === 'active') return todos.filter(x => !x.completed); // from parent B
+        if (currentFilter === 'completed') return todos.filter(x => x.completed); // from parent B
+        return todos; // from parent A / from parent B
+      }
+
+      // render UI
+      function render() {
+        todoList.innerHTML = ''; // from parent A / from parent B
+        const visible = getFiltered();
+        visible.forEach(todo => {
+          const li = document.createElement('li');
+          li.setAttribute('data-testid', 'todo-item'); // from parent A / from parent B
+          li.dataset.id = todo.id;
+          if (todo.completed) li.classList.add('completed'); // from parent A / from parent B
+
+          const checkbox = document.createElement('input');
+          checkbox.type = 'checkbox';
+          checkbox.setAttribute('data-testid', 'todo-toggle'); // from parent A / from parent B
+          checkbox.checked = !!todo.completed;
+          checkbox.addEventListener('change', () => toggleTodo(todo.id)); // from parent A / from parent B
+
+          const span = document.createElement('span');
+          span.className = 'todo-text'; // from parent B
+          span.setAttribute('data-testid', 'todo-text'); // from parent A / from parent B
+          span.textContent = todo.text;
+
+          // editing - double click to edit
+          span.addEventListener('dblclick', () => {
+            span.setAttribute('contenteditable', 'true'); // from parent A / from parent B
+            span.focus();
+            // select all contents for easy replacement (from parent A)
+            try {
+              const range = document.createRange(); // from parent A / from parent B
+              range.selectNodeContents(span);
+              const sel = window.getSelection();
+              sel.removeAllRanges();
+              sel.addRange(range);
+            } catch (e) {}
+          });
+
+          span.addEventListener('blur', () => {
+            if (span.getAttribute('contenteditable') === 'true') {
+              span.removeAttribute('contenteditable'); // from parent B
+              updateText(todo.id, span.textContent); // from parent A / from parent B
+            }
+          });
+
+          span.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              span.blur(); // from parent A / from parent B
+            } else if (e.key === 'Escape') {
+              e.preventDefault();
+              span.textContent = todo.text; // from parent B (revert original text)
+              span.blur(); // from parent B
+            }
+          });
+
+          const delBtn = document.createElement('button');
+          delBtn.setAttribute('data-testid', 'todo-delete'); // from parent A / from parent B
+          delBtn.textContent = '削除';
+          delBtn.addEventListener('click', () => deleteTodo(todo.id)); // from parent A / from parent B
+
+          li.appendChild(checkbox);
+          li.appendChild(span);
+          li.appendChild(delBtn);
+          todoList.appendChild(li);
+        });
+
+        // update filter button active states
+        [filterAll, filterActive, filterCompleted].forEach(b => b.classList.remove('active')); // from parent A / from parent B
+        if (currentFilter === 'all') filterAll.classList.add('active'); // from parent B
+        else if (currentFilter === 'active') filterActive.classList.add('active'); // from parent B
+        else if (currentFilter === 'completed') filterCompleted.classList.add('active'); // from parent B
+      }
+
+      // UI bindings
+      addBtn.addEventListener('click', () => {
+        addTodo(input.value); // from parent A / from parent B
+        input.value = ''; // from parent A / from parent B
+        input.focus(); // from parent B
+      });
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          addTodo(input.value); // from parent A / from parent B
+          input.value = ''; // from parent A / from parent B
+        }
+      });
+
+      filterAll.addEventListener('click', () => setFilter('all')); // from parent A / from parent B
+      filterActive.addEventListener('click', () => setFilter('active')); // from parent A / from parent B
+      filterCompleted.addEventListener('click', () => setFilter('completed')); // from parent A / from parent B
+
+      clearCompletedBtn.addEventListener('click', clearCompleted); // from parent A / from parent B
+
+      // initialize
+      loadFromStorage(); // from parent A / from parent B
+      render(); // from parent A / from parent B
+    })();
+  </script>
+</body>
+</html>

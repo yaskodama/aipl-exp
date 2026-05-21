@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Todo App</title>
+<style>
+  /* from parent A / B: basic layout and styles */
+  body { font-family: sans-serif; max-width: 600px; margin: 2em auto; padding: 1em; }
+  h1 { text-align: center; }
+  .input-row, .filters { display: flex; gap: 0.5em; margin-bottom: 1em; }
+  #new-todo-input { flex: 1; padding: 0.5em; font-size: 1em; }
+  button { padding: 0.5em 1em; cursor: pointer; }
+  .filters { justify-content: center; }
+  .filters button.active { background: #4a90e2; color: white; }
+  ul { list-style: none; padding: 0; margin: 0; }
+  li { display: flex; align-items: center; gap: 0.5em; padding: 0.5em; border-bottom: 1px solid #ddd; }
+  /* from parent B: completed style */
+  li.completed .todo-text { text-decoration: line-through; color: #888; }
+  .todo-text { flex: 1; padding: 0.25em; min-width: 0; }
+  .todo-text[contenteditable="true"] { background: #ffffe0; outline: 1px solid #4a90e2; }
+  .todo-delete { background: #e74c3c; color: white; border: none; padding: 0.25em 0.5em; }
+  .clear-row { text-align: center; margin-top: 1em; }
+</style>
+</head>
+<body>
+<h1>Todo</h1>
+
+<!-- from parent A: input area -->
+<div class="input-row">
+  <input type="text" data-testid="new-todo-input" id="new-todo-input" placeholder="やることを入力">
+  <button data-testid="add-btn" id="add-btn">追加</button>
+</div>
+
+<!-- from parent A: filter buttons -->
+<div class="filters">
+  <button data-testid="filter-all" id="filter-all">全て</button>
+  <button data-testid="filter-active" id="filter-active">未完了</button>
+  <button data-testid="filter-completed" id="filter-completed">完了</button>
+</div>
+
+<!-- from parent B: todo list -->
+<ul data-testid="todo-list" id="todo-list"></ul>
+
+<!-- from parent B: clear completed -->
+<div class="clear-row">
+  <button data-testid="clear-completed" id="clear-completed">完了を一括削除</button>
+</div>
+
+<script>
+(() => {
+  // from parent A: localStorage keys and DOM refs
+  const STORAGE_KEY = 'todos.v1', FILTER_KEY = 'todos.filter';
+  const input = document.getElementById('new-todo-input');
+  const todoList = document.getElementById('todo-list');
+
+  // from parent A: restore state from localStorage (empty at first run)
+  let todos = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+  let filter = localStorage.getItem(FILTER_KEY) || 'all';
+
+  // from parent B: small HTML escape utility to avoid XSS when injecting via innerHTML
+  const escapeHTML = s => String(s).replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+
+  // from parent A: save state and render
+  const saveAndRender = () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(todos));
+    localStorage.setItem(FILTER_KEY, filter);
+    render();
+  };
+
+  // from parent B: render with filtering
+  const render = () => {
+    const filtered = todos.filter(t => filter === 'all' || (filter === 'completed' ? t.completed : !t.completed));
+    todoList.innerHTML = filtered.map(t => `
+      <li data-testid="todo-item" data-id="${t.id}" class="${t.completed ? 'completed' : ''}">
+        <input type="checkbox" data-testid="todo-toggle" ${t.completed ? 'checked' : ''}>
+        <span data-testid="todo-text" class="todo-text">${escapeHTML(t.text)}</span>
+        <button data-testid="todo-delete" class="todo-delete">削除</button>
+      </li>`).join('');
+    // from parent A: update active state of filter buttons
+    document.querySelectorAll('.filters button').forEach(b => b.classList.toggle('active', b.id === `filter-${filter}`));
+  };
+
+  // from parent A: add new todo
+  const addTodo = () => {
+    const text = input.value.trim();
+    if (!text) return;
+    todos.push({ id: Date.now() + Math.random(), text, completed: false });
+    input.value = '';
+    input.focus();
+    saveAndRender();
+  };
+
+  // from parent A: add button and Enter key for creating todos
+  document.getElementById('add-btn').addEventListener('click', addTodo);
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') addTodo(); });
+
+  // from parent B: filter buttons click handling
+  document.querySelector('.filters').addEventListener('click', e => {
+    if (e.target.tagName === 'BUTTON') {
+      filter = e.target.id.replace('filter-', '');
+      saveAndRender();
+    }
+  });
+
+  // from parent B: clear completed
+  document.getElementById('clear-completed').addEventListener('click', () => {
+    todos = todos.filter(t => !t.completed);
+    saveAndRender();
+  });
+
+  // from parent A (with slight robustness improvement): delegated click handling for delete and toggle
+  todoList.addEventListener('click', e => {
+    const li = e.target.closest('li[data-id]');
+    if (!li) return;
+    const id = Number(li.dataset.id);
+    if (e.target.matches('[data-testid="todo-delete"]')) {
+      // from parent A: delete
+      todos = todos.filter(t => t.id !== id);
+      saveAndRender();
+    } else if (e.target.matches('[data-testid="todo-toggle"]')) {
+      // from parent A / B: toggle completion (use checkbox checked state for correctness)
+      const todo = todos.find(t => t.id === id);
+      if (todo) {
+        todo.completed = e.target.checked;
+        saveAndRender();
+      }
+    }
+  });
+
+  // from parent B: double-click to edit (make span contenteditable and focus at end)
+  todoList.addEventListener('dblclick', e => {
+    const span = e.target;
+    if (!span.matches('[data-testid="todo-text"]')) return;
+    span.setAttribute('contenteditable', 'true');
+    span.focus();
+    // move caret to end
+    const range = document.createRange();
+    range.selectNodeContents(span);
+    range.collapse(false);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  });
+
+  // from parent B: focusout confirms edit; empty input reverts to previous text
+  todoList.addEventListener('focusout', e => {
+    const span = e.target;
+    if (!span.matches('[data-testid="todo-text"]') || span.getAttribute('contenteditable') !== 'true') return;
+    span.setAttribute('contenteditable', 'false');
+    const id = Number(span.closest('li').dataset.id);
+    const todo = todos.find(t => t.id === id);
+    const newText = span.textContent.trim();
+    if (todo && newText) {
+      todo.text = newText;
+    } else if (todo) {
+      // revert visual change if new text is empty
+      span.textContent = todo.text;
+    }
+    saveAndRender();
+  });
+
+  // from parent B: Enter confirms edit, Escape cancels edit
+  todoList.addEventListener('keydown', e => {
+    const span = e.target;
+    if (!span.matches('[data-testid="todo-text"]') || span.getAttribute('contenteditable') !== 'true') return;
+    if (e.key === 'Enter' || e.key === 'Escape') {
+      e.preventDefault();
+      if (e.key === 'Escape') {
+        const id = Number(span.closest('li').dataset.id);
+        const todo = todos.find(t => t.id === id);
+        if (todo) span.textContent = todo.text;
+      }
+      span.blur();
+    }
+  });
+
+  // initial render (from parent A)
+  render();
+})();
+</script>
+</body>
+</html>

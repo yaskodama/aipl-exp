@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>単一 HTML Todo アプリ</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root {
+      --bg: #f7f7f7;
+      --card: #ffffff;
+      --text: #333;
+      --muted: #888;
+      --accent: #3a7afe;
+      --danger: #e54545;
+      --border: #e3e3e3;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+      background: var(--bg);
+      color: var(--text);
+    }
+    .app {
+      max-width: 720px;
+      margin: 40px auto;
+      padding: 16px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+      overflow: hidden;
+    }
+    .header {
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: center;
+    }
+    .title {
+      margin: 0 0 12px 0;
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: .2px;
+    }
+    .input-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+    }
+    input[type="text"][data-testid="new-todo-input"] {
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      outline: none;
+      font-size: 16px;
+      transition: border-color .15s ease, box-shadow .15s ease;
+    }
+    input[type="text"][data-testid="new-todo-input"]:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(58,122,254,0.15);
+    }
+    button {
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: #fff;
+      cursor: pointer;
+      font-size: 14px;
+      transition: transform .02s ease, box-shadow .15s ease, border-color .15s ease;
+    }
+    button:active { transform: translateY(1px); }
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+    .btn-danger {
+      color: #fff;
+      background: var(--danger);
+      border-color: var(--danger);
+    }
+    .filters {
+      padding: 12px 16px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+    .filters .group {
+      display: inline-flex;
+      gap: 6px;
+      background: #fafafa;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 4px;
+    }
+    .filters .group button {
+      border: none;
+      background: transparent;
+      padding: 6px 12px;
+      border-radius: 999px;
+    }
+    .filters .group button.selected {
+      background: #fff;
+      border: 1px solid var(--border);
+      box-shadow: 0 1px 2px rgba(0,0,0,.04);
+    }
+    .filters .spacer { flex: 1; }
+    ul[data-testid="todo-list"] {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    li[data-testid="todo-item"] {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      background: #fff;
+    }
+    li[data-testid="todo-item"]:hover {
+      background: #fcfcfc;
+    }
+    input[type="checkbox"][data-testid="todo-toggle"] {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+    }
+    span[data-testid="todo-text"] {
+      min-height: 20px;
+      word-break: break-word;
+      outline: none;
+    }
+    li.completed span[data-testid="todo-text"] {
+      text-decoration: line-through;
+      color: var(--muted);
+    }
+    button[data-testid="todo-delete"] {
+      color: #fff;
+      background: var(--danger);
+      border-color: var(--danger);
+    }
+    .footer {
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .muted {
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .hidden { display: none !important; }
+    .sr-only {
+      position: absolute !important;
+      width: 1px !important;
+      height: 1px !important;
+      padding: 0 !important;
+      margin: -1px !important;
+      overflow: hidden !important;
+      clip: rect(0,0,0,0) !important;
+      white-space: nowrap !important;
+      border: 0 !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="card">
+      <div class="header">
+        <div>
+          <h1 class="title">Todo</h1>
+          <div class="input-row">
+            <input type="text" data-testid="new-todo-input" placeholder="やることを入力して Enter または『追加』" autocomplete="off" />
+            <button class="btn-primary" data-testid="add-btn" aria-label="追加">追加</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="filters" role="toolbar" aria-label="フィルタ">
+        <div class="group" role="group" aria-label="状態フィルタ">
+          <button data-testid="filter-all" aria-pressed="true" class="selected">全て</button>
+          <button data-testid="filter-active" aria-pressed="false">未完了</button>
+          <button data-testid="filter-completed" aria-pressed="false">完了</button>
+        </div>
+        <div class="spacer"></div>
+        <button class="btn-danger" data-testid="clear-completed" aria-label="完了済みを一括削除">完了を一括削除</button>
+      </div>
+
+      <ul data-testid="todo-list" aria-live="polite" aria-label="Todo リスト"></ul>
+
+      <div class="footer">
+        <span class="muted" id="counter">0 件</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function(){
+      'use strict';
+
+      const $ = (sel, root=document) => root.querySelector(sel);
+      const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
+      const STORAGE_KEY = 'todo-app-items-v1';
+      const FILTER_KEY = 'todo-app-filter-v1';
+
+      const els = {
+        input: $('[data-testid="new-todo-input"]'),
+        addBtn: $('[data-testid="add-btn"]'),
+        list: $('[data-testid="todo-list"]'),
+        filterAll: $('[data-testid="filter-all"]'),
+        filterActive: $('[data-testid="filter-active"]'),
+        filterCompleted: $('[data-testid="filter-completed"]'),
+        clearCompleted: $('[data-testid="clear-completed"]'),
+        counter: $('#counter')
+      };
+
+      let state = {
+        items: [],
+        filter: 'all' // 'all' | 'active' | 'completed'
+      };
+
+      // Load state
+      try {
+        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+        if (Array.isArray(saved)) state.items = saved.map(s => ({
+          id: s.id ?? genId(),
+          text: typeof s.text === 'string' ? s.text : '',
+          completed: !!s.completed
+        }));
+      } catch(e){ state.items = []; }
+      try {
+        const f = localStorage.getItem(FILTER_KEY);
+        if (f === 'all' || f === 'active' || f === 'completed') state.filter = f;
+      } catch(e){}
+
+      // Initial render
+      renderAll();
+
+      // Event bindings
+      els.addBtn.addEventListener('click', () => {
+        addFromInput();
+      });
+
+      els.input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.isComposing) {
+          addFromInput();
+        }
+      });
+
+      // Delegation for toggle and delete
+      els.list.addEventListener('change', (e) => {
+        const target = e.target;
+        if (target && target.matches('[data-testid="todo-toggle"]')) {
+          const li = target.closest('[data-testid="todo-item"]');
+          if (!li) return;
+          const id = li.dataset.id;
+          toggleItem(id, target.checked);
+        }
+      });
+
+      els.list.addEventListener('click', (e) => {
+        const target = e.target;
+        if (target && target.matches('[data-testid="todo-delete"]')) {
+          const li = target.closest('[data-testid="todo-item"]');
+          if (!li) return;
+          const id = li.dataset.id;
+          deleteItem(id);
+        }
+      });
+
+      // Double-click to edit
+      els.list.addEventListener('dblclick', (e) => {
+        const t = e.target;
+        const textEl = t && (t.matches('[data-testid="todo-text"]') ? t : t.closest('[data-testid="todo-text"]'));
+        if (!textEl) return;
+        startEditing(textEl);
+      });
+
+      // End edit on blur / Enter / Escape
+      els.list.addEventListener('keydown', (e) => {
+        const t = e.target;
+        if (!t || !t.matches('[data-testid="todo-text"][contenteditable="true"]')) return;
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          commitEditing(t);
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          cancelEditing(t);
+        }
+      });
+      els.list.addEventListener('blur', (e) => {
+        const t = e.target;
+        if (t && t.matches('[data-testid="todo-text"][contenteditable="true"]')) {
+          // Commit on blur
+          commitEditing(t);
+        }
+      }, true);
+
+      // Filters
+      els.filterAll.addEventListener('click', () => setFilter('all'));
+      els.filterActive.addEventListener('click', () => setFilter('active'));
+      els.filterCompleted.addEventListener('click', () => setFilter('completed'));
+
+      // Clear completed
+      els.clearCompleted.addEventListener('click', () => {
+        const before = state.items.length;
+        state.items = state.items.filter(it => !it.completed);
+        saveItems();
+        renderList();
+        announce(`${before - state.items.length} 件の完了項目を削除しました`);
+      });
+
+      // Functions
+      function genId(){
+        return Math.random().toString(36).slice(2) + Date.now().toString(36);
+      }
+
+      function sanitize(str){
+        return (str ?? '').replace(/\s+/g, ' ').trim();
+      }
+
+      function addFromInput(){
+        const text = sanitize(els.input.value);
+        if (!text) return;
+        state.items.push({ id: genId(), text, completed: false });
+        els.input.value = '';
+        saveItems();
+        renderList();
+      }
+
+      function toggleItem(id, completed){
+        const it = state.items.find(i => i.id === id);
+        if (!it) return;
+        it.completed = !!completed;
+        saveItems();
+        renderListVisibilityOnly(); // as class and visibility may change
+      }
+
+      function deleteItem(id){
+        const idx = state.items.findIndex(i => i.id === id);
+        if (idx === -1) return;
+        state.items.splice(idx,1);
+        saveItems();
+        renderList();
+      }
+
+      function startEditing(textEl){
+        if (textEl.getAttribute('contenteditable') === 'true') return;
+        const li = textEl.closest('[data-testid="todo-item"]');
+        if (!li) return;
+        textEl.dataset.original = textEl.textContent;
+        textEl.setAttribute('contenteditable', 'true');
+        textEl.focus();
+        placeCaretAtEnd(textEl);
+      }
+
+      function commitEditing(textEl){
+        const li = textEl.closest('[data-testid="todo-item"]');
+        if (!li) return endEditing(textEl);
+        const id = li.dataset.id;
+        const it = state.items.find(i => i.id === id);
+        if (!it) return endEditing(textEl);
+
+        const newText = sanitize(textEl.textContent);
+        if (!newText) {
+          // empty -> revert
+          textEl.textContent = textEl.dataset.original || '';
+        } else {
+          it.text = newText;
+          textEl.textContent = newText; // ensure no HTML
+          saveItems();
+        }
+        endEditing(textEl);
+      }
+
+      function cancelEditing(textEl){
+        textEl.textContent = textEl.dataset.original || textEl.textContent || '';
+        endEditing(textEl);
+      }
+
+      function endEditing(textEl){
+        textEl.removeAttribute('data-original');
+        textEl.removeAttribute('contenteditable');
+        textEl.blur();
+      }
+
+      function setFilter(type){
+        if (type !== 'all' && type !== 'active' && type !== 'completed') return;
+        state.filter = type;
+        localStorage.setItem(FILTER_KEY, type);
+        updateFilterUI();
+        renderListVisibilityOnly();
+      }
+
+      function updateFilterUI(){
+        const m = {
+          all: els.filterAll,
+          active: els.filterActive,
+          completed: els.filterCompleted
+        };
+        Object.keys(m).forEach(key => {
+          const btn = m[key];
+          const selected = key === state.filter;
+          btn.classList.toggle('selected', selected);
+          btn.setAttribute('aria-pressed', String(selected));
+        });
+      }
+
+      function saveItems(){
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(state.items));
+        } catch(e){}
+        updateCounter();
+      }
+
+      function renderAll(){
+        updateFilterUI();
+        renderList();
+      }
+
+      function renderList(){
+        els.list.innerHTML = '';
+        const frag = document.createDocumentFragment();
+        state.items.forEach(item => {
+          const li = document.createElement('li');
+          li.setAttribute('data-testid', 'todo-item');
+          li.dataset.id = item.id;
+          if (item.completed) li.classList.add('completed');
+
+          const cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.setAttribute('data-testid', 'todo-toggle');
+          cb.checked = !!item.completed;
+          cb.setAttribute('aria-label', '完了にする');
+
+          const text = document.createElement('span');
+          text.setAttribute('data-testid', 'todo-text');
+          text.textContent = item.text;
+          text.setAttribute('title', 'ダブルクリックで編集');
+
+          const del = document.createElement('button');
+          del.setAttribute('data-testid', 'todo-delete');
+          del.textContent = '削除';
+          del.setAttribute('aria-label', '削除');
+
+          li.appendChild(cb);
+          li.appendChild(text);
+          li.appendChild(del);
+          frag.appendChild(li);
+        });
+        els.list.appendChild(frag);
+        renderListVisibilityOnly();
+        updateCounter();
+      }
+
+      function renderListVisibilityOnly(){
+        // Update classes and visibility per filter
+        const map = new Map(state.items.map(i => [i.id, i]));
+        $$('#todo-list [data-testid="todo-item"]', document).forEach(li => {
+          const id = li.dataset.id;
+          const it = map.get(id);
+          if (!it) return;
+          li.classList.toggle('completed', !!it.completed);
+
+          let visible = true;
+          if (state.filter === 'active') visible = !it.completed;
+          else if (state.filter === 'completed') visible = it.completed;
+
+          li.classList.toggle('hidden', !visible);
+          // Keep checkbox in sync (if toggled via data)
+          const cb = li.querySelector('[data-testid="todo-toggle"]');
+          if (cb) cb.checked = !!it.completed;
+          // Keep text in sync (if edited elsewhere)
+          const t = li.querySelector('[data-testid="todo-text"]');
+          if (t && t.getAttribute('contenteditable') !== 'true') {
+            if (t.textContent !== it.text) t.textContent = it.text;
+          }
+        });
+        updateCounter();
+      }
+
+      function updateCounter(){
+        const total = state.items.length;
+        const active = state.items.filter(i => !i.completed).length;
+        const comp = total - active;
+        els.counter.textContent = `全:${total} / 未:${active} / 済:${comp}`;
+      }
+
+      function placeCaretAtEnd(el){
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        range.collapse(false);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+
+      function announce(msg){
+        // Simple polite announce using aria-live region
+        let live = document.getElementById('live-region');
+        if (!live) {
+          live = document.createElement('div');
+          live.id = 'live-region';
+          live.setAttribute('aria-live', 'polite');
+          live.className = 'sr-only';
+          document.body.appendChild(live);
+        }
+        live.textContent = msg;
+      }
+    })();
+  </script>
+</body>
+</html>

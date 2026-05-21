@@ -1,0 +1,43 @@
+仕様: 単一 HTML Pomodoro タイマーアプリ
+=====================================
+
+実装要件:
+- 単一 HTML ファイル（CSS, JS は <style>, <script> でインライン）
+- フレームワーク・外部ライブラリ不可。素の HTML/JS のみ
+- ファイルを開いてすぐ動作すること
+- 時間進行は setInterval / setTimeout を使うこと（テストで page.clock により仮想時計を進めるため）
+
+UI 要素（テストで使うので必ず data-testid を付与してください）:
+- 残り時間表示 (mm:ss):              data-testid="timer-display"
+- フェーズ表示 ("work"/"break"):     data-testid="phase-display"
+- サイクル数表示:                    data-testid="cycle-count"
+- 開始ボタン:                        data-testid="btn-start"
+- 一時停止ボタン:                    data-testid="btn-pause"
+- リセットボタン:                    data-testid="btn-reset"
+- スキップボタン (次フェーズへ):     data-testid="btn-skip"
+- work 時間設定 (分):                data-testid="setting-work"      (input type="number")
+- break 時間設定 (分):               data-testid="setting-break"     (input type="number")
+- 設定保存ボタン:                    data-testid="btn-save-settings"
+
+機能要件:
+1. 起動時のタイマー表示は work 時間（既定 25:00、設定があれば反映）
+2. 起動時のフェーズは "work"
+3. 起動時のサイクル数は 0
+4. 開始ボタンでタイマーが減り始める
+5. 一時停止ボタンでタイマーが停止
+6. リセットボタンで現在フェーズの開始時間に戻る（フェーズは変えない）
+7. スキップボタンで次フェーズへ（work→break または break→work）
+8. work 完了で自動的に break フェーズに遷移、タイマーは break 時間に
+9. break 完了で work フェーズに戻り、サイクル数 +1
+10. 設定で work 時間を変更し、保存後にリセットすると新しい時間で開始
+11. 設定で break 時間を変更し、保存できる
+12. リロード後も設定が保持される (localStorage)
+13. リロード後もサイクル数が保持される (localStorage)
+
+タイマー表示フォーマット:
+- 残り 25:00 → "25:00"
+- 残り 1:09  → "1:09" または "01:09" 可
+- 残り 0:00  → "0:00" または "00:00" 可
+
+スタイル:
+- 見た目は問わない
