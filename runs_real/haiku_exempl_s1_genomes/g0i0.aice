@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8"><title>Todo App</title><style>body{font-family:sans-serif;max-width:600px;margin:2em auto;padding:1em}input[data-testid="new-todo-input"]{width:100%;padding:0.5em;font-size:1em;margin-bottom:0.5em}button{padding:0.5em 1em;cursor:pointer}.filters{display:flex;gap:0.5em;margin:1em 0;justify-content:center}.filters button.active{background:#4a90e2;color:#fff}ul[data-testid="todo-list"]{list-style:none;padding:0;margin:1em 0}li[data-testid="todo-item"]{display:flex;gap:0.5em;align-items:center;padding:0.75em;border-bottom:1px solid #eee}li.completed .todo-text{text-decoration:line-through;color:#999}li .todo-text{flex:1;word-break:break-all}li .todo-text[contenteditable="true"]{background:#fffbe6;outline:1px dashed #f5c000;padding:2px}button[data-testid="clear-completed"]{display:block;margin:1em auto}</style></head><body>
+<h1>Todo</h1>
+<input type="text" data-testid="new-todo-input" placeholder="やることを入力">
+<button data-testid="add-btn">追加</button>
+<div class="filters">
+<button data-testid="filter-all" class="active">全て</button>
+<button data-testid="filter-active">未完了</button>
+<button data-testid="filter-completed">完了</button>
+</div>
+<ul data-testid="todo-list"></ul>
+<button data-testid="clear-completed">完了を一括削除</button>
+<script>
+(()=>{
+const STORAGE_KEY='todos.v1',FILTER_KEY='todos.filter';
+let todos=[],filter='all';
+const $list=document.querySelector('[data-testid="todo-list"]');
+const $input=document.querySelector('[data-testid="new-todo-input"]');
+const $addBtn=document.querySelector('[data-testid="add-btn"]');
+const $clearBtn=document.querySelector('[data-testid="clear-completed"]');
+const $filterBtns=document.querySelectorAll('.filters button');
+
+const load=()=>{
+const t=localStorage.getItem(STORAGE_KEY);
+if(t)todos=JSON.parse(t);
+const f=localStorage.getItem(FILTER_KEY);
+if(f)filter=f;
+};
+
+const save=()=>{
+localStorage.setItem(STORAGE_KEY,JSON.stringify(todos));
+localStorage.setItem(FILTER_KEY,filter);
+};
+
+const add=()=>{
+const text=$input.value.trim();
+if(!text)return;
+todos.push({id:Date.now()+Math.random(),text,completed:false});
+$input.value='';
+$input.focus();
+save();
+render();
+};
+
+const del=(id)=>{
+todos=todos.filter(t=>t.id!==id);
+save();
+render();
+};
+
+const toggle=(id)=>{
+const t=todos.find(t=>t.id===id);
+if(t)t.completed=!t.completed;
+save();
+render();
+};
+
+const update=(id,text)=>{
+text=text.trim();
+const t=todos.find(t=>t.id===id);
+if(!t)return;
+if(!text){del(id);return;}
+t.text=text;
+save();
+render();
+};
+
+const clearCompleted=()=>{
+todos=todos.filter(t=>!t.completed);
+save();
+render();
+};
+
+const setFilter=(f)=>{
+filter=f;
+save();
+render();
+};
+
+const getVisible=()=>{
+if(filter==='active')return todos.filter(t=>!t.completed);
+if(filter==='completed')return todos.filter(t=>t.completed);
+return todos;
+};
+
+const render=()=>{
+$list.innerHTML='';
+getVisible().forEach(t=>{
+const li=document.createElement('li');
+li.setAttribute('data-testid','todo-item');
+li.dataset.id=t.id;
+if(t.completed)li.classList.add('completed');
+
+const cb=document.createElement('input');
+cb.type='checkbox';
+cb.setAttribute('data-testid','todo-toggle');
+cb.checked=t.completed;
+cb.addEventListener('change',()=>toggle(t.id));
+
+const span=document.createElement('span');
+span.setAttribute('data-testid','todo-text');
+span.className='todo-text';
+span.textContent=t.text;
+
+const startEdit=()=>{
+span.contentEditable='true';
+span.focus();
+const range=document.createRange();
+range.selectNodeContents(span);
+const sel=window.getSelection();
+sel.removeAllRanges();
+sel.addRange(range);
+};
+
+const endEdit=()=>{
+span.contentEditable='false';
+if(span.textContent.trim()){
+update(t.id,span.textContent);
+}else{
+span.textContent=t.text;
+}
+};
+
+span.addEventListener('dblclick',startEdit);
+span.addEventListener('blur',endEdit);
+span.addEventListener('keydown',(e)=>{
+if(e.key==='Enter'){e.preventDefault();endEdit();}
+if(e.key==='Escape'){e.preventDefault();span.contentEditable='false';span.textContent=t.text;}
+});
+
+const delBtn=document.createElement('button');
+delBtn.setAttribute('data-testid','todo-delete');
+delBtn.textContent='削除';
+delBtn.addEventListener('click',()=>del(t.id));
+
+li.appendChild(cb);
+li.appendChild(span);
+li.appendChild(delBtn);
+$list.appendChild(li);
+});
+
+$filterBtns.forEach(b=>{
+b.classList.remove('active');
+if(b.dataset.testid===`filter-${filter}`)b.classList.add('active');
+});
+};
+
+$addBtn.addEventListener('click',add);
+$input.addEventListener('keydown',(e)=>{
+if(e.key==='Enter')add();
+});
+
+$filterBtns.forEach(b=>{
+b.addEventListener('click',()=>{
+filter=b.dataset.testid.replace('filter-','');
+setFilter(filter);
+});
+});
+
+$clearBtn.addEventListener('click',clearCompleted);
+
+load();
+render();
+})();
+</script></body></html>

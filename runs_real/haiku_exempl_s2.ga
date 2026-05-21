@@ -1,0 +1,58 @@
+# GA v1 — AIPL アプリ進化実験
+META problem="todo"
+META condition="AIPL-multi-agent"
+META population=4
+META generations=3
+META seed=2
+META start_time="2026-05-21T13:01:41"
+META target_fitness=0.85
+META fitness_mode="quality"
+
+GEN 0
+EVENT llm_call id=c0001 agent=haiku_exempl task=init tokens_in=3220 tokens_out=2285 latency_ms=11852 cost=0.014645
+INDIV id=g0i0 op=init fitness=0.6990 parents=[] agent=haiku_exempl call=c0001 passed=12/12 loc=215 genome_ref="runs_real/haiku_exempl_s2_genomes/g0i0.aice"
+EVENT llm_call id=c0002 agent=haiku_exempl task=init tokens_in=3220 tokens_out=1755 latency_ms=11192 cost=0.011995
+INDIV id=g0i1 op=init fitness=0.9762 parents=[] agent=haiku_exempl call=c0002 passed=12/12 loc=17 genome_ref="runs_real/haiku_exempl_s2_genomes/g0i1.aice"
+EVENT llm_call id=c0003 agent=haiku_exempl task=init tokens_in=3220 tokens_out=2242 latency_ms=12669 cost=0.014430
+INDIV id=g0i2 op=init fitness=0.4511 parents=[] agent=haiku_exempl call=c0003 passed=8/12 loc=231 genome_ref="runs_real/haiku_exempl_s2_genomes/g0i2.aice"
+EVENT llm_call id=c0004 agent=haiku_exempl task=init tokens_in=3220 tokens_out=1526 latency_ms=10063 cost=0.010850
+INDIV id=g0i3 op=init fitness=0.8992 parents=[] agent=haiku_exempl call=c0004 passed=12/12 loc=72 genome_ref="runs_real/haiku_exempl_s2_genomes/g0i3.aice"
+SUMMARY gen=0 best=0.9762 mean=0.7564 worst=0.4511 diversity=0.2161 elapsed_ms=70464 cumulative_cost=0.051920
+
+GEN 1
+INDIV id=g1i0 op=elite fitness=0.9762 parents=[g0i1] agent=- call=- passed=12/12 loc=17 genome_ref="runs_real/haiku_exempl_s2_genomes/g0i1.aice"
+EVENT llm_call id=c0005 agent=haiku_exempl task=simplify tokens_in=2352 tokens_out=1345 latency_ms=8255 cost=0.009077 parents=g0i3
+INDIV id=g1i1 op=simplify fitness=0.9188 parents=[g0i3] agent=haiku_exempl call=c0005 passed=12/12 loc=58 genome_ref="runs_real/haiku_exempl_s2_genomes/g1i1.aice"
+EVENT llm_call id=c0006 agent=haiku_exempl task=crossover tokens_in=4227 tokens_out=2350 latency_ms=13278 cost=0.015977 parents=g0i1,g0i3
+INDIV id=g1i2 op=crossover fitness=0.6710 parents=[g0i1,g0i3] agent=haiku_exempl call=c0006 passed=12/12 loc=235 genome_ref="runs_real/haiku_exempl_s2_genomes/g1i2.aice"
+EVENT llm_call id=c0007 agent=haiku_exempl task=mutation tokens_in=4980 tokens_out=1775 latency_ms=9674 cost=0.013855 parents=g0i1
+INDIV id=g1i3 op=mutation fitness=0.9762 parents=[g0i1] agent=haiku_exempl call=c0007 passed=12/12 loc=17 genome_ref="runs_real/haiku_exempl_s2_genomes/g1i3.aice"
+SUMMARY gen=1 best=0.9762 mean=0.8855 worst=0.6710 diversity=0.2674 elapsed_ms=37063 cumulative_cost=0.090829
+
+GEN 2
+INDIV id=g2i0 op=elite fitness=0.9762 parents=[g1i0] agent=- call=- passed=12/12 loc=17 genome_ref="runs_real/haiku_exempl_s2_genomes/g0i1.aice"
+EVENT llm_call id=c0008 agent=haiku_exempl task=mutation tokens_in=5000 tokens_out=1824 latency_ms=9663 cost=0.014120 parents=g1i3
+INDIV id=g2i1 op=mutation fitness=0.9762 parents=[g1i3] agent=haiku_exempl call=c0008 passed=12/12 loc=17 genome_ref="runs_real/haiku_exempl_s2_genomes/g2i1.aice"
+EVENT llm_call id=c0009 agent=haiku_exempl task=mutation tokens_in=4980 tokens_out=1773 latency_ms=9340 cost=0.013845 parents=g1i0
+INDIV id=g2i2 op=mutation fitness=0.9762 parents=[g1i0] agent=haiku_exempl call=c0009 passed=12/12 loc=17 genome_ref="runs_real/haiku_exempl_s2_genomes/g2i2.aice"
+EVENT llm_call id=c0010 agent=haiku_exempl task=mutation tokens_in=5000 tokens_out=1786 latency_ms=9583 cost=0.013930 parents=g1i3
+INDIV id=g2i3 op=mutation fitness=0.9762 parents=[g1i3] agent=haiku_exempl call=c0010 passed=12/12 loc=17 genome_ref="runs_real/haiku_exempl_s2_genomes/g2i3.aice"
+SUMMARY gen=2 best=0.9762 mean=0.9762 worst=0.9762 diversity=0.0198 elapsed_ms=34424 cumulative_cost=0.132724
+
+GEN 3
+INDIV id=g3i0 op=elite fitness=0.9762 parents=[g2i0] agent=- call=- passed=12/12 loc=17 genome_ref="runs_real/haiku_exempl_s2_genomes/g0i1.aice"
+EVENT llm_call id=c0011 agent=haiku_exempl task=mutation tokens_in=5049 tokens_out=1794 latency_ms=11011 cost=0.014019 parents=g2i1
+INDIV id=g3i1 op=mutation fitness=0.9762 parents=[g2i1] agent=haiku_exempl call=c0011 passed=12/12 loc=17 genome_ref="runs_real/haiku_exempl_s2_genomes/g3i1.aice"
+EVENT llm_call id=c0012 agent=haiku_exempl task=crossover tokens_in=4525 tokens_out=1801 latency_ms=9464 cost=0.013530 parents=g2i0,g2i1
+INDIV id=g3i2 op=crossover fitness=0.9762 parents=[g2i0,g2i1] agent=haiku_exempl call=c0012 passed=12/12 loc=17 genome_ref="runs_real/haiku_exempl_s2_genomes/g3i2.aice"
+EVENT llm_call id=c0013 agent=haiku_exempl task=simplify tokens_in=2650 tokens_out=1688 latency_ms=9938 cost=0.011090 parents=g2i1
+INDIV id=g3i3 op=simplify fitness=0.9762 parents=[g2i1] agent=haiku_exempl call=c0013 passed=12/12 loc=17 genome_ref="runs_real/haiku_exempl_s2_genomes/g3i3.aice"
+SUMMARY gen=3 best=0.9762 mean=0.9762 worst=0.9762 diversity=0.0407 elapsed_ms=36390 cumulative_cost=0.171363
+# 試行完了
+META end_time="2026-05-21T13:04:39"
+META status="success"
+META best_id="g3i0"
+META best_fitness="0.9762"
+META total_llm_calls=13
+META total_cost="0.171363"
+META generations_to_target=0

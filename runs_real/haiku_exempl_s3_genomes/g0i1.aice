@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8"><title>Todo App</title><style>*{box-sizing:border-box}body{font-family:sans-serif;max-width:600px;margin:2em auto;padding:1em}.input-row{display:flex;gap:0.5em;margin-bottom:1em}#new-todo-input{flex:1;padding:0.5em;font-size:1em}button{padding:0.5em 1em;cursor:pointer;font-size:1em}.filters{display:flex;gap:0.5em;margin-bottom:1em;justify-content:center}button.filter-active{background:#4a90e2;color:#fff}ul{list-style:none;padding:0;margin:0}li{display:flex;align-items:center;gap:0.5em;padding:0.5em;border-bottom:1px solid #eee}li input[type="checkbox"]{cursor:pointer}li .todo-text{flex:1;word-break:break-all}li .todo-text[contenteditable="true"]{background:#fffbe6;outline:2px solid #f5c000;padding:0.25em}li.completed .todo-text{text-decoration:line-through;color:#999}li button{padding:0.25em 0.75em;font-size:0.9em}.clear-row{text-align:center;margin-top:1em}</style></head><body>
+<div class="input-row">
+  <input type="text" data-testid="new-todo-input" id="new-todo-input" placeholder="やることを入力">
+  <button data-testid="add-btn" id="add-btn">追加</button>
+</div>
+<div class="filters">
+  <button data-testid="filter-all" id="filter-all" class="filter-active">全て</button>
+  <button data-testid="filter-active" id="filter-active">未完了</button>
+  <button data-testid="filter-completed" id="filter-completed">完了</button>
+</div>
+<ul data-testid="todo-list" id="todo-list"></ul>
+<div class="clear-row"><button data-testid="clear-completed" id="clear-completed">完了を一括削除</button></div>
+<script>
+(()=>{
+  const STORE_KEY='todos.v1',FILTER_KEY='filter.v1';
+  let todos=[],filter='all';
+  const inpt=document.getElementById('new-todo-input');
+  const list=document.getElementById('todo-list');
+  const addBtn=document.getElementById('add-btn');
+  const clearBtn=document.getElementById('clear-completed');
+  
+  function load(){
+    try{const d=localStorage.getItem(STORE_KEY);todos=d?JSON.parse(d):[]}catch(e){todos=[]}
+    try{filter=localStorage.getItem(FILTER_KEY)||'all'}catch(e){}
+  }
+  
+  function save(){
+    try{localStorage.setItem(STORE_KEY,JSON.stringify(todos));localStorage.setItem(FILTER_KEY,filter)}catch(e){}
+  }
+  
+  function render(){
+    list.innerHTML='';
+    const visible=filter==='all'?todos:filter==='active'?todos.filter(t=>!t.completed):todos.filter(t=>t.completed);
+    visible.forEach(t=>{
+      const li=document.createElement('li');
+      li.setAttribute('data-testid','todo-item');
+      li.dataset.id=t.id;
+      if(t.completed)li.classList.add('completed');
+      
+      const chk=document.createElement('input');
+      chk.type='checkbox';
+      chk.setAttribute('data-testid','todo-toggle');
+      chk.checked=t.completed;
+      chk.addEventListener('change',()=>{t.completed=!t.completed;save();render()});
+      
+      const span=document.createElement('span');
+      span.setAttribute('data-testid','todo-text');
+      span.className='todo-text';
+      span.textContent=t.text;
+      span.addEventListener('dblclick',()=>{
+        span.contentEditable='true';
+        span.focus();
+        const range=document.createRange();
+        range.selectNodeContents(span);
+        const sel=window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+      });
+      span.addEventListener('blur',()=>{
+        span.contentEditable='false';
+        const newText=(span.textContent||'').trim();
+        if(newText){t.text=newText;save();render()}else{span.textContent=t.text}
+      });
+      span.addEventListener('keydown',(e)=>{
+        if(e.key==='Enter'){e.preventDefault();span.blur()}
+        if(e.key==='Escape'){e.preventDefault();span.contentEditable='false';span.textContent=t.text}
+      });
+      
+      const del=document.createElement('button');
+      del.setAttribute('data-testid','todo-delete');
+      del.textContent='削除';
+      del.addEventListener('click',()=>{
+        todos=todos.filter(x=>x.id!==t.id);
+        save();
+        render();
+      });
+      
+      li.appendChild(chk);
+      li.appendChild(span);
+      li.appendChild(del);
+      list.appendChild(li);
+    });
+  }
+  
+  function add(){
+    const v=(inpt.value||'').trim();
+    if(!v)return;
+    todos.push({id:Date.now()+Math.random(),text:v,completed:false});
+    inpt.value='';
+    inpt.focus();
+    save();
+    render();
+  }
+  
+  addBtn.addEventListener('click',add);
+  inpt.addEventListener('keydown',(e)=>{if(e.key==='Enter')add()});
+  
+  document.querySelector('.filters').addEventListener('click',(e)=>{
+    if(e.target.tagName==='BUTTON'){
+      document.querySelectorAll('.filters button').forEach(b=>b.classList.remove('filter-active'));
+      e.target.classList.add('filter-active');
+      filter=e.target.dataset.testid.replace('filter-','');
+      save();
+      render();
+    }
+  });
+  
+  clearBtn.addEventListener('click',()=>{
+    todos=todos.filter(t=>!t.completed);
+    save();
+    render();
+  });
+  
+  load();
+  render();
+})();
+</script></body></html>

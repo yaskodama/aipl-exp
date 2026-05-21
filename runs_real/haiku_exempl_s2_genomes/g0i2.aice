@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Todo App</title>
+<style>
+body{font-family:sans-serif;max-width:600px;margin:2em auto;padding:1em}
+.container{background:#f9f9f9;padding:1.5em;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.1)}
+.input-row{display:flex;gap:0.5em;margin-bottom:1.5em}
+#new-todo-input{flex:1;padding:0.75em;font-size:1em;border:1px solid #ddd;border-radius:4px}
+button{padding:0.75em 1.5em;cursor:pointer;border:none;border-radius:4px;background:#4a90e2;color:#fff;font-size:1em}
+button:hover{background:#357abd}
+.filters{display:flex;gap:0.5em;margin-bottom:1.5em;justify-content:center}
+.filters button{background:#ddd;color:#333}
+.filters button.active{background:#4a90e2;color:#fff}
+ul{list-style:none;padding:0;margin:0}
+li{display:flex;align-items:center;gap:0.75em;padding:0.75em;border-bottom:1px solid #eee;background:#fff}
+li:last-child{border-bottom:none}
+li input[type="checkbox"]{cursor:pointer;width:20px;height:20px}
+.todo-text{flex:1;cursor:pointer}
+.todo-text[contenteditable="true"]{background:#fff9e6;border:1px solid #ffc53d;padding:0.5em;border-radius:3px;outline:none}
+li.completed .todo-text{text-decoration:line-through;color:#999}
+li.completed{opacity:0.7}
+.todo-delete{background:#e74c3c;padding:0.5em 1em;font-size:0.9em}
+.todo-delete:hover{background:#c0392b}
+.clear-row{text-align:center;margin-top:1.5em}
+.clear-row button{background:#e74c3c}
+.clear-row button:hover{background:#c0392b}
+.empty-state{text-align:center;color:#999;padding:2em}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>Todo</h1>
+<div class="input-row">
+<input type="text" data-testid="new-todo-input" id="new-todo-input" placeholder="やることを入力...">
+<button data-testid="add-btn" id="add-btn">追加</button>
+</div>
+<div class="filters">
+<button data-testid="filter-all" id="filter-all" class="active">全て</button>
+<button data-testid="filter-active" id="filter-active">未完了</button>
+<button data-testid="filter-completed" id="filter-completed">完了</button>
+</div>
+<ul data-testid="todo-list" id="todo-list"></ul>
+<div class="empty-state" id="empty-state">やることはありません</div>
+<div class="clear-row">
+<button data-testid="clear-completed" id="clear-completed">完了項目を削除</button>
+</div>
+</div>
+<script>
+(()=>{
+const STORAGE_KEY='todos.v1',FILTER_KEY='todos.filter';
+let todos=[],filter='all';
+const $=id=>document.getElementById(id);
+const $q=s=>document.querySelector(s);
+
+function load(){
+try{
+const t=localStorage.getItem(STORAGE_KEY);
+if(t)todos=JSON.parse(t)||[];
+const f=localStorage.getItem(FILTER_KEY);
+if(f)filter=f;
+}catch(e){
+todos=[];
+}
+}
+
+function save(){
+try{
+localStorage.setItem(STORAGE_KEY,JSON.stringify(todos));
+localStorage.setItem(FILTER_KEY,filter);
+}catch(e){}
+}
+
+function addTodo(){
+const v=$('new-todo-input').value.trim();
+if(!v)return;
+todos.push({id:Date.now()+Math.random(),text:v,completed:false});
+$('new-todo-input').value='';
+$('new-todo-input').focus();
+save();
+render();
+}
+
+function deleteTodo(id){
+todos=todos.filter(t=>t.id!==id);
+save();
+render();
+}
+
+function toggleTodo(id){
+const t=todos.find(t=>t.id===id);
+if(t){
+t.completed=!t.completed;
+save();
+render();
+}
+}
+
+function updateTodo(id,text){
+const t=todos.find(t=>t.id===id);
+if(!t)return;
+text=text.trim();
+if(text){
+t.text=text;
+}
+save();
+render();
+}
+
+function clearCompleted(){
+todos=todos.filter(t=>!t.completed);
+save();
+render();
+}
+
+function getVisible(){
+if(filter==='active')return todos.filter(t=>!t.completed);
+if(filter==='completed')return todos.filter(t=>t.completed);
+return todos;
+}
+
+function setFilter(f){
+filter=f;
+['filter-all','filter-active','filter-completed'].forEach(id=>{
+$q(`[data-testid="${id}"]`).classList.remove('active');
+});
+$q(`[data-testid="filter-${f}"]`).classList.add('active');
+save();
+render();
+}
+
+function startEdit(span,li){
+const id=parseFloat(li.dataset.id);
+const original=span.textContent;
+span.contentEditable='true';
+span.focus();
+const sel=window.getSelection();
+const range=document.createRange();
+range.selectNodeContents(span);
+sel.removeAllRanges();
+sel.addRange(range);
+
+function finishEdit(){
+span.contentEditable='false';
+const newText=span.textContent.trim();
+if(newText){
+updateTodo(id,newText);
+}else{
+span.textContent=original;
+}
+}
+
+span.onblur=finishEdit;
+span.onkeydown=e=>{
+if(e.key==='Enter'){
+e.preventDefault();
+finishEdit();
+}else if(e.key==='Escape'){
+e.preventDefault();
+span.contentEditable='false';
+span.textContent=original;
+}
+};
+}
+
+function render(){
+const list=$('todo-list');
+const empty=$('empty-state');
+const visible=getVisible();
+
+if(visible.length===0){
+list.innerHTML='';
+empty.style.display='block';
+return;
+}
+
+empty.style.display='none';
+list.innerHTML=visible.map(t=>`
+<li data-testid="todo-item" data-id="${t.id}" class="${t.completed?'completed':''}">
+<input type="checkbox" data-testid="todo-toggle" ${t.completed?'checked':''}>
+<span data-testid="todo-text" class="todo-text">${escapeHtml(t.text)}</span>
+<button data-testid="todo-delete" class="todo-delete">削除</button>
+</li>
+`).join('');
+
+list.addEventListener('click',e=>{
+const li=e.target.closest('li[data-id]');
+if(!li)return;
+const id=parseFloat(li.dataset.id);
+if(e.target.dataset.testid==='todo-delete'){
+deleteTodo(id);
+}else if(e.target.dataset.testid==='todo-toggle'){
+toggleTodo(id);
+}
+});
+
+list.addEventListener('dblclick',e=>{
+if(e.target.dataset.testid==='todo-text'){
+const li=e.target.closest('li[data-id]');
+startEdit(e.target,li);
+}
+});
+}
+
+function escapeHtml(text){
+const div=document.createElement('div');
+div.textContent=text;
+return div.innerHTML;
+}
+
+$('add-btn').addEventListener('click',addTodo);
+$('new-todo-input').addEventListener('keydown',e=>{
+if(e.key==='Enter')addTodo();
+});
+
+['filter-all','filter-active','filter-completed'].forEach(id=>{
+$q(`[data-testid="${id}"]`).addEventListener('click',e=>{
+const f=id.replace('filter-','');
+setFilter(f);
+});
+});
+
+$('clear-completed').addEventListener('click',clearCompleted);
+
+load();
+render();
+})();
+</script>
+</body>
+</html>

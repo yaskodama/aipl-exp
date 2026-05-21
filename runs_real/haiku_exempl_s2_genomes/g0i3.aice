@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Todo App</title>
+<style>
+body{font-family:sans-serif;max-width:600px;margin:2em auto;padding:1em}
+.input-row{display:flex;gap:.5em;margin-bottom:1em}
+#new-todo-input{flex:1;padding:.5em;font-size:1em}
+button{padding:.5em 1em;cursor:pointer}
+.filters{display:flex;gap:.5em;margin-bottom:1em;justify-content:center}
+.filters button.active{background:#4a90e2;color:#fff}
+ul{list-style:none;padding:0}
+li{display:flex;align-items:center;gap:.5em;padding:.5em;border-bottom:1px solid #eee}
+li .todo-text{flex:1;cursor:text}
+li.completed .todo-text{text-decoration:line-through;color:#999}
+li .todo-text[contenteditable="true"]{background:#fffbe6;outline:1px dashed #f5c000;padding:2px}
+.clear-row{text-align:center;margin-top:1em}
+</style>
+</head>
+<body>
+<div class="input-row">
+<input type="text" data-testid="new-todo-input" id="new-todo-input" placeholder="何をしますか？">
+<button data-testid="add-btn" id="add-btn">追加</button>
+</div>
+<div class="filters">
+<button data-testid="filter-all" id="filter-all" class="active">全て</button>
+<button data-testid="filter-active" id="filter-active">未完了</button>
+<button data-testid="filter-completed" id="filter-completed">完了</button>
+</div>
+<ul data-testid="todo-list" id="todo-list"></ul>
+<div class="clear-row"><button data-testid="clear-completed" id="clear-completed">完了項目を削除</button></div>
+<script>
+(()=>{
+const SK='todos.v1',FK='todos.filter';let todos=[],filter='all';
+const $id=id=>document.getElementById(id);
+const load=()=>{try{const d=localStorage.getItem(SK);if(d)todos=JSON.parse(d);const f=localStorage.getItem(FK);if(f)filter=f}catch(e){}};
+const save=()=>{try{localStorage.setItem(SK,JSON.stringify(todos));localStorage.setItem(FK,filter)}catch(e){}};
+const sync=()=>{save();render()};
+const add=text=>{text=(text||'').trim();if(!text)return;todos.push({id:Date.now()+Math.random(),text,completed:false});sync()};
+const del=id=>{todos=todos.filter(t=>t.id!==id);sync()};
+const tog=id=>{const t=todos.find(t=>t.id===id);if(t){t.completed=!t.completed;sync()}};
+const upd=(id,text)=>{const t=todos.find(t=>t.id===id);if(!t)return;text=(text||'').trim();if(!text){del(id);return}t.text=text;sync()};
+const clearDone=()=>{todos=todos.filter(t=>!t.completed);sync()};
+const setFilter=f=>{filter=f;save();render()};
+const getVisible=()=>filter==='active'?todos.filter(t=>!t.completed):filter==='completed'?todos.filter(t=>t.completed):todos;
+const render=()=>{
+const list=$id('todo-list');list.innerHTML='';getVisible().forEach(t=>{
+const li=document.createElement('li');li.setAttribute('data-testid','todo-item');li.dataset.id=t.id;
+if(t.completed)li.classList.add('completed');
+const cb=document.createElement('input');cb.type='checkbox';cb.setAttribute('data-testid','todo-toggle');cb.checked=t.completed;
+cb.addEventListener('change',()=>tog(t.id));
+const sp=document.createElement('span');sp.setAttribute('data-testid','todo-text');sp.className='todo-text';sp.textContent=t.text;
+sp.addEventListener('dblclick',()=>{sp.contentEditable='true';sp.focus()});
+sp.addEventListener('blur',()=>{sp.contentEditable='false';upd(t.id,sp.textContent)});
+sp.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key==='Escape'){e.preventDefault();if(e.key==='Escape')sp.textContent=t.text;sp.blur()}});
+const btn=document.createElement('button');btn.setAttribute('data-testid','todo-delete');btn.textContent='削除';btn.addEventListener('click',()=>del(t.id));
+li.appendChild(cb);li.appendChild(sp);li.appendChild(btn);list.appendChild(li);
+});
+$id('filter-all').classList.toggle('active',filter==='all');
+$id('filter-active').classList.toggle('active',filter==='active');
+$id('filter-completed').classList.toggle('active',filter==='completed');
+};
+$id('add-btn').addEventListener('click',()=>{const inp=$id('new-todo-input');add(inp.value);inp.value='';inp.focus()});
+$id('new-todo-input').addEventListener('keydown',e=>{if(e.key==='Enter'){const inp=$id('new-todo-input');add(inp.value);inp.value='';inp.focus()}});
+document.querySelectorAll('.filters button').forEach(b=>b.addEventListener('click',()=>setFilter(b.dataset.testid.replace('filter-',''))));
+$id('clear-completed').addEventListener('click',clearDone);
+load();render();
+})();
+</script>
+</body>
+</html>

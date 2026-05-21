@@ -156,6 +156,52 @@ def wrap_with_history(
 
 
 # ============================================================
+# Exemplar code injection — 実コードをそのまま fewshot に注入
+# ============================================================
+def exemplar_code_fewshot(
+    exemplar_paths: list[Path],
+    max_chars_per: int = 3500,
+    intro: str | None = None,
+) -> str:
+    """`.aice` (HTML) の実コードを fewshot 文字列にして返す。
+
+    metadata 注入 (extract_history_from_runs) と違い、**実装そのものを** LLM に提示する。
+    短く高品質な exemplar (例: 1-LOC champion) を seed として使うのに有効。
+    """
+    if not exemplar_paths:
+        return ""
+    lines: list[str] = []
+    lines.append(intro or "# 過去のパイロットで発見された高品質実装の例")
+    lines.append("")
+    lines.append("以下は同じ仕様を満たす高品質な実装の例です。書きぶり・短さ・関数構成を参考にしてください。")
+    lines.append("")
+    for i, path in enumerate(exemplar_paths, 1):
+        code = path.read_text(encoding="utf-8")
+        truncated = ""
+        if len(code) > max_chars_per:
+            code = code[:max_chars_per]
+            truncated = " ...(省略)"
+        lines.append(f"## 例 {i} ({path.stem}, {len(code)} chars):")
+        lines.append("```html")
+        lines.append(code + truncated)
+        lines.append("```")
+        lines.append("")
+    lines.append("---")
+    lines.append("これらの実装スタイルを参考に、新しい実装を作成してください。")
+    return "\n".join(lines)
+
+
+def wrap_with_exemplars(
+    agent: BaseAgent,
+    exemplar_paths: list[Path],
+    max_chars_per: int = 3500,
+) -> HistoryFedAgent:
+    """高品質 exemplar のコード本体を fewshot として注入してエージェントをラップ。"""
+    fewshot = exemplar_code_fewshot(exemplar_paths, max_chars_per=max_chars_per)
+    return HistoryFedAgent(agent, fewshot, name_suffix="_exempl")
+
+
+# ============================================================
 # 動作確認 (smoke test)
 # ============================================================
 if __name__ == "__main__":
