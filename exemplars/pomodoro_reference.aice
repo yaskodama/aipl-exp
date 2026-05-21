@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8"><title>Pomodoro</title>
+<style>
+body{font-family:sans-serif;text-align:center;padding:2em;}
+#timer-display{font-size:4em;font-weight:bold;}
+#phase-display{font-size:1.2em;color:#666;}
+button{padding:.6em 1em;margin:.2em;font-size:1em;}
+</style></head>
+<body>
+<h1>Pomodoro</h1>
+<div data-testid="phase-display" id="phase-display">work</div>
+<div data-testid="timer-display" id="timer-display">25:00</div>
+<div>cycle: <span data-testid="cycle-count" id="cycle-count">0</span></div>
+<div>
+  <button data-testid="btn-start" id="btn-start">Start</button>
+  <button data-testid="btn-pause" id="btn-pause">Pause</button>
+  <button data-testid="btn-reset" id="btn-reset">Reset</button>
+  <button data-testid="btn-skip" id="btn-skip">Skip</button>
+</div>
+<div style="margin-top:1em;">
+  work (min): <input data-testid="setting-work" id="setting-work" type="number" value="25" min="1"/>
+  break (min): <input data-testid="setting-break" id="setting-break" type="number" value="5" min="1"/>
+  <button data-testid="btn-save-settings" id="btn-save-settings">Save</button>
+</div>
+<script>
+function loadSettings(){
+  try{return JSON.parse(localStorage.getItem('pomo_settings')||'null')||{work:25,brk:5};}
+  catch(e){return {work:25,brk:5};}
+}
+function persistSettings(s){localStorage.setItem('pomo_settings', JSON.stringify(s));}
+function loadCycles(){return parseInt(localStorage.getItem('pomo_cycles')||'0',10);}
+function persistCycles(n){localStorage.setItem('pomo_cycles', String(n));}
+
+let settings = loadSettings();
+let phase = 'work';
+let cycles = loadCycles();
+let remainingMs = settings.work * 60 * 1000;
+let intervalId = null;
+let lastTick = null;
+
+function fmt(ms){
+  if(ms<0) ms=0;
+  const total = Math.ceil(ms/1000);
+  const m = Math.floor(total/60), s = total - m*60;
+  return m + ':' + String(s).padStart(2,'0');
+}
+function render(){
+  document.querySelector('[data-testid="timer-display"]').textContent = fmt(remainingMs);
+  document.querySelector('[data-testid="phase-display"]').textContent = phase;
+  document.querySelector('[data-testid="cycle-count"]').textContent = String(cycles);
+  document.querySelector('[data-testid="setting-work"]').value = settings.work;
+  document.querySelector('[data-testid="setting-break"]').value = settings.brk;
+}
+function phaseDuration(){
+  return (phase==='work' ? settings.work : settings.brk) * 60 * 1000;
+}
+function startTimer(){
+  if(intervalId) return;
+  lastTick = Date.now();
+  intervalId = setInterval(()=>{
+    const now = Date.now();
+    remainingMs -= (now - lastTick);
+    lastTick = now;
+    if(remainingMs <= 0){
+      // フェーズ遷移
+      if(phase === 'work'){
+        phase = 'break';
+        remainingMs = phaseDuration();
+      } else {
+        phase = 'work';
+        cycles += 1;
+        persistCycles(cycles);
+        remainingMs = phaseDuration();
+      }
+    }
+    render();
+  }, 250);
+}
+function pauseTimer(){
+  if(intervalId){ clearInterval(intervalId); intervalId = null; }
+}
+function resetTimer(){
+  pauseTimer();
+  remainingMs = phaseDuration();
+  render();
+}
+function skipPhase(){
+  pauseTimer();
+  if(phase === 'work'){
+    phase = 'break';
+  } else {
+    phase = 'work';
+    cycles += 1;
+    persistCycles(cycles);
+  }
+  remainingMs = phaseDuration();
+  render();
+}
+function saveSettings(){
+  const w = parseInt(document.querySelector('[data-testid="setting-work"]').value,10) || 25;
+  const b = parseInt(document.querySelector('[data-testid="setting-break"]').value,10) || 5;
+  settings = {work: w, brk: b};
+  persistSettings(settings);
+  render();
+}
+
+document.addEventListener('DOMContentLoaded', ()=>{
+  document.querySelector('[data-testid="btn-start"]').addEventListener('click', startTimer);
+  document.querySelector('[data-testid="btn-pause"]').addEventListener('click', pauseTimer);
+  document.querySelector('[data-testid="btn-reset"]').addEventListener('click', resetTimer);
+  document.querySelector('[data-testid="btn-skip"]').addEventListener('click', skipPhase);
+  document.querySelector('[data-testid="btn-save-settings"]').addEventListener('click', saveSettings);
+  render();
+});
+</script>
+</body></html>
